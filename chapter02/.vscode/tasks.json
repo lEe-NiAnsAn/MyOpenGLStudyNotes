@@ -11,7 +11,7 @@
 				"${workspaceFolder}\\src\\*.cpp",
 					"${workspaceFolder}\\src\\glad.c",
 				"-o",
-				"${workspaceFolder}\\bin\\main.exe",
+				"${workspaceFolder}\\bin\\chapter02.exe",
 				"-I",
 				"${workspaceFolder}\\include",
 				"-L",
