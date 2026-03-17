@@ -49,7 +49,7 @@ int main() {
 	float color_b = 0.0f;
 	float color_g = 0.0f;
 	float angle = 0.0f;                
-    const float angle_step = 0.0006f;
+    const float angle_step = 0.00003f;
     const float phase_offset = 2 * M_PI / 3;	// 三原色相位差
 
     // 渲染循环
