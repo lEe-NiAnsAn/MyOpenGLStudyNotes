@@ -3,7 +3,7 @@
 	"tasks": [
 		{
 			"type": "cppbuild",
-			"label": "chapter01",
+			"label": "chapter02",
 			"command": "C:\\Developments\\mingw64\\15.2.0\\bin\\g++.exe",
 			"args": [
 				"-fdiagnostics-color=always",
