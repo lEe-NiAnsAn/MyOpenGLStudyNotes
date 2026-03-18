@@ -84,11 +84,12 @@ const char *vertexShaderSource =
 const char *fragmentShaderSource = 
 	"#version 330 core\n"
 	"out vec4 FragColor;\n " 
-	"in vec3 myColor;\n"	// 接收颜色值
-	"uniform vec3 time;\n"
+	"in vec3 myColor;\n"	// 接收初始颜色值
+	"uniform vec3 time;\n"  // 【全局变量】控制颜色变化
 	"void main() {\n"
-	"	vec3 tempColor = abs(myColor + time);\n"
-	"	FragColor = vec4(tempColor, 1.0);\n"
+	"	vec3 tempColor = myColor + time;\n"	// 初始值与变量值相加取浮点数绝对值
+	"	tempColor = min(tempColor, vec3(1.0));\n"	// 防止溢出
+	"	FragColor = vec4(tempColor, 1.0);\n"	// 无法直接修改由顶点着色器输入的变量属性
 	"}\0";
 
 void framebuffer_size_callback(GLFWwindow *window, int width, int height) {
@@ -168,9 +169,9 @@ int main() {
 	// 顶点数组
 	float vertices[] = {
 		// 位置					// 颜色
-		 0.5f, -0.5f, 0.0f,		1.0f, 0.0f, 0.0f,	// 右下
-		-0.5f, -0.5f, 0.0f,		0.0f, 1.0f, 0.0f,	// 左下
-		 0.0f,  0.5f, 0.0f,		0.0f, 0.0f, 1.0f 	// 顶部
+		 0.5f, -0.5f, 0.0f,		0.8f, 0.0f, 0.0f,	// 右下（红）
+		-0.5f, -0.5f, 0.0f,		0.0f, 0.7f, 0.0f,	// 左下（绿）
+		 0.0f,  0.5f, 0.0f,		0.0f, 0.0f, 0.9f 	// 顶部（蓝）
 	};
 
 	// 生成配置 VAO、VBO
@@ -186,6 +187,8 @@ int main() {
 	// 步长 6*4 字节，起始偏移量 3*4 字节（前 3*4 字节是位置属性值）
 	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
     glEnableVertexAttribArray(1);	// 位置值1的颜色属性
+	// 片段着色器的片段插值：
+	// 当渲染图形时，光栅化阶段通常会线性插入更多片段，根据其所处相对位置决定片段属性，形成平滑过渡的效果
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
 
@@ -195,17 +198,18 @@ int main() {
 		glClearColor(0.8f, 0.8f, 0.8f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
 
-		glUseProgram(shaderProgram);
-		int vertexColorLocation = glGetUniformLocation(shaderProgram, "time");
-		float timeValue = glfwGetTime();
-		float colorValue[] = {
-			sinf(0.7 * timeValue)/2.3f,
-			cosf(2.3 * timeValue)/2.9f,
-			sinf(3.1 * timeValue)/1.9f
+		// 使用着色器
+		glUseProgram(shaderProgram);	// 启动
+		int vertexColorLocation = glGetUniformLocation(shaderProgram, "time");	// 定位
+		float timeValue = glfwGetTime();	// 获取运行时间
+		float colorValue[] = {	// 三角函数“潮汐”变化修改值
+			fabsf(sinf(1.7 * timeValue)/1.7f),
+			fabsf(cosf(1.3 * timeValue)/2.3f),
+			fabsf(sinf(0.7 * timeValue)/1.3f)
 		};
-		glUniform3fv(vertexColorLocation, 1, colorValue);
+		glUniform3fv(vertexColorLocation, 1, colorValue);	// 传入
         glBindVertexArray(VAO);
-        glDrawArrays(GL_TRIANGLES, 0, 3);
+        glDrawArrays(GL_TRIANGLES, 0, 3);	// 绘图
 
 		glfwSwapBuffers(window);
         glfwPollEvents();
