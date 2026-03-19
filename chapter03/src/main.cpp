@@ -3,6 +3,8 @@
 #include <iostream>
 #include <cmath>
 
+#include "shader.h"
+
 /*  着色器语言GLSL概要：
 
 1. 基本结构
@@ -72,25 +74,25 @@ glUseProgram(shaderProgram);	// 查询 uniform 地址不要求提前使用着色
 glUniform4f(vertexColorLocation, 0.0f, greenValue, 0.0f, 1.0f);	// 向当前激活的着色器程序的 ourColor 传入 RGBA 值
 */
 
-const char *vertexShaderSource = 
-	"#version 330 core\n"
-	"layout (location = 0) in vec3 aPos;\n"	// 位置变量属性位置值为0
-	"layout (location = 1) in vec3 aColor;\n"	// 颜色变量属性位置值为1
-	"out vec3 myColor;\n"	// 向片段着色器输出一个颜色
-	"void main() {\n"
-	"	gl_Position = vec4(aPos, 1.0);\n"
-	"	myColor = aColor;\n"	// 设置输出颜色为顶点数据中的值
-	"}\0";
-const char *fragmentShaderSource = 
-	"#version 330 core\n"
-	"out vec4 FragColor;\n " 
-	"in vec3 myColor;\n"	// 接收初始颜色值
-	"uniform vec3 time;\n"  // 【全局变量】控制颜色变化
-	"void main() {\n"
-	"	vec3 tempColor = myColor + time;\n"	// 初始值与变量值相加取浮点数绝对值
-	"	tempColor = min(tempColor, vec3(1.0));\n"	// 防止溢出
-	"	FragColor = vec4(tempColor, 1.0);\n"	// 无法直接修改由顶点着色器输入的变量属性
-	"}\0";
+// const char *vertexShaderSource = 
+// 	"#version 330 core\n"
+// 	"layout (location = 0) in vec3 aPos;\n"	// 位置变量属性位置值为0
+// 	"layout (location = 1) in vec3 aColor;\n"	// 颜色变量属性位置值为1
+// 	"out vec3 myColor;\n"	// 向片段着色器输出一个颜色
+// 	"void main() {\n"
+// 	"	gl_Position = vec4(aPos, 1.0);\n"
+// 	"	myColor = aColor;\n"	// 设置输出颜色为顶点数据中的值
+// 	"}\0";
+// const char *fragmentShaderSource = 
+// 	"#version 330 core\n"
+// 	"out vec4 FragColor;\n " 
+// 	"in vec3 myColor;\n"	// 接收初始颜色值
+// 	"uniform vec3 time;\n"  // 【全局变量】控制颜色变化
+// 	"void main() {\n"
+// 	"	vec3 tempColor = myColor + time;\n"	// 初始值与变量值相加取浮点数绝对值
+// 	"	tempColor = min(tempColor, vec3(1.0));\n"	// 防止溢出
+// 	"	FragColor = vec4(tempColor, 1.0);\n"	// 无法直接修改由顶点着色器输入的变量属性
+// 	"}\0";
 
 void framebuffer_size_callback(GLFWwindow *window, int width, int height) {
     glViewport(0, 0, width, height);
@@ -132,39 +134,42 @@ int main() {
     std::cout << "Maximum nr of vertex attributes supported: " << nrAttributes << std::endl;
 
 	// 编译着色器源代码
-	unsigned int vertexShader = glCreateShader(GL_VERTEX_SHADER);
-    glShaderSource(vertexShader, 1, &vertexShaderSource, NULL);
-    glCompileShader(vertexShader);
-    int success;
-    char infolog [512];
-    glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
-    if (!success) {
-        glGetShaderInfoLog(vertexShader, 512, NULL, infolog);
-        std::cout << "Vertex Shader Error!\n"  << infolog << std::endl;
-    }
-    unsigned int fragmentShader;
-    fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(fragmentShader, 1, &fragmentShaderSource, NULL);
-    glCompileShader(fragmentShader);
-    glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success); 
-    if (!success) {
-        glGetShaderInfoLog(fragmentShader, 512, NULL, infolog);
-        std::cout << "Fragment Shader Error!\n"  << infolog << std::endl;
-    }
+	// unsigned int vertexShader = glCreateShader(GL_VERTEX_SHADER);
+    // glShaderSource(vertexShader, 1, &vertexShaderSource, NULL);
+    // glCompileShader(vertexShader);
+    // int success;
+    // char infolog [512];
+    // glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
+    // if (!success) {
+    //     glGetShaderInfoLog(vertexShader, 512, NULL, infolog);
+    //     std::cout << "Vertex Shader Error!\n"  << infolog << std::endl;
+    // }
+    // unsigned int fragmentShader;
+    // fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+    // glShaderSource(fragmentShader, 1, &fragmentShaderSource, NULL);
+    // glCompileShader(fragmentShader);
+    // glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success); 
+    // if (!success) {
+    //     glGetShaderInfoLog(fragmentShader, 512, NULL, infolog);
+    //     std::cout << "Fragment Shader Error!\n"  << infolog << std::endl;
+    // }
 
     // 创建着色器程序
-    unsigned int shaderProgram;
-    shaderProgram = glCreateProgram();
-    glAttachShader (shaderProgram, vertexShader);
-    glAttachShader (shaderProgram, fragmentShader);
-    glLinkProgram(shaderProgram);
-    glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
-    if(!success) {
-        glGetProgramInfoLog(shaderProgram, 512, NULL, infolog);
-        std::cout << "Link Shaders Error!\n"  << infolog << std::endl;
-    }
-    glDeleteShader(vertexShader);
-    glDeleteShader(fragmentShader);
+    // unsigned int shaderProgram;
+    // shaderProgram = glCreateProgram();
+    // glAttachShader (shaderProgram, vertexShader);
+    // glAttachShader (shaderProgram, fragmentShader);
+    // glLinkProgram(shaderProgram);
+    // glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
+    // if(!success) {
+    //     glGetProgramInfoLog(shaderProgram, 512, NULL, infolog);
+    //     std::cout << "Link Shaders Error!\n"  << infolog << std::endl;
+    // }
+    // glDeleteShader(vertexShader);
+    // glDeleteShader(fragmentShader);
+
+    // 使用着色器类编译、创建
+    Shader myShader("src/shaders/shader.vert","src/shaders/shader.frag");
 
 	// 顶点数组
 	float vertices[] = {
@@ -199,15 +204,13 @@ int main() {
         glClear(GL_COLOR_BUFFER_BIT);
 
 		// 使用着色器
-		glUseProgram(shaderProgram);	// 启动
-		int vertexColorLocation = glGetUniformLocation(shaderProgram, "time");	// 定位
+		// glUseProgram(shaderProgram);	// 启动
+		// int vertexColorLocation = glGetUniformLocation(shaderProgram, "time");	// 定位
+        myShader.use(); // 使用类方法启动
 		float timeValue = glfwGetTime();	// 获取运行时间
-		float colorValue[] = {	// 三角函数“潮汐”变化修改值
-			fabsf(sinf(1.7 * timeValue)/1.7f),
-			fabsf(cosf(1.3 * timeValue)/2.3f),
-			fabsf(sinf(0.7 * timeValue)/1.3f)
-		};
-		glUniform3fv(vertexColorLocation, 1, colorValue);	// 传入
+		float colorValue[] = {timeValue, timeValue, timeValue};
+		// glUniform3fv(vertexColorLocation, 1, colorValue);	// 定位并传入
+        myShader.set3Floatv("time", colorValue);    // 使用类工具传入
         glBindVertexArray(VAO);
         glDrawArrays(GL_TRIANGLES, 0, 3);	// 绘图
 
@@ -217,7 +220,7 @@ int main() {
 
 	glDeleteVertexArrays(1, &VAO);
     glDeleteBuffers(1, &VBO);
-    glDeleteProgram(shaderProgram);
+    glDeleteProgram(myShader.ID);
 
     
     glfwTerminate();

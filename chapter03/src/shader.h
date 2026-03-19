@@ -16,10 +16,11 @@ public:
 	
 	void use();	// 使用
 
-	// uniform 工具函数
-	void setBool(const std::string &name, bool value) const;
-	void setInt(const std::string &name, int value) const;
-	void setFloat(const std::string name, float value) const;
+	// uniform 不同类型的属性
+	void set1Bool(const std::string &name, bool value) const;
+	void set1Int(const std::string &name, int value) const;
+	void set1Float(const std::string &name, float value) const;
+	void set3Floatv(const std::string &name, float *value) const;
 };
 
 #endif
