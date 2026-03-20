@@ -51,10 +51,10 @@ int main() {
     // 元素缓冲对象
     float vertices[] = { 
 		// ---- 位置 ----		---- 颜色 ----		- 纹理坐标 -
-		 0.5f, -0.5f, 0.0f,		0.0f, 0.7f, 0.0f,	1.0f, 0.0f,	// 右下
-		 0.5f,  0.5f, 0.0f,		0.8f, 0.0f, 0.0f,	1.0f, 1.0f,	// 右上
-		-0.5f, -0.5f, 0.0f,		0.0f, 0.0f, 0.9f,	0.0f, 0.0f,	// 左下
-		-0.5f,  0.5f, 0.0f,		0.8f, 0.7f, 0.0f,	0.0f, 1.0f 	// 左上    
+		 0.5f, -0.5f, 0.0f,		0.7f, 0.4f, 0.0f,	1.0f, 0.0f,	// 右下
+		 0.5f,  0.5f, 0.0f,		0.7f, 0.0f, 0.0f,	1.0f, 1.0f,	// 右上
+		-0.5f, -0.5f, 0.0f,		0.0f, 0.7f, 0.0f,	0.0f, 0.0f,	// 左下
+		-0.5f,  0.5f, 0.0f,		0.0f, 0.0f, 0.8f,	0.0f, 1.0f 	// 左上    
 	};
     unsigned int indices[] = {	// 步长为 8*4 字节
         0, 1, 2, 
@@ -108,6 +108,9 @@ int main() {
         glClear(GL_COLOR_BUFFER_BIT);
         // 加载着色器绘制
         myShader.use();
+        float timeValue = glfwGetTime();
+        float colorValue[] = {timeValue, timeValue, timeValue};
+        myShader.set3Floatv("time", colorValue);
         glBindVertexArray(VAO);
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
         glfwSwapBuffers(window);
