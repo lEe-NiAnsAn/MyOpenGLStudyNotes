@@ -6,7 +6,8 @@ in vec2 TexCoord;
 out vec4 FragColor;
 
 uniform vec3 time;
-uniform sampler2D myTexture;
+uniform sampler2D myTexture01;
+uniform sampler2D myTexture02;
 
 void main() {
 	vec3 tempTime = time;
@@ -15,6 +16,6 @@ void main() {
 	tempTime.z = abs(sin(0.7 * tempTime.z)/1.3f);
 	vec3 tempColor = myColor + tempTime;
 	tempColor = min(tempColor, vec3(1.0));
-	// 采样纹理颜色混合顶点颜色
-	FragColor = texture(myTexture, TexCoord) * vec4(tempColor, 0.3 + (abs(sin(0.5 * time.x)) / 2.0f));
+	// 采样纹理颜色混合顶点颜色（ mix 函数可接受两个值，并通过第三个参数表示后者所占比例进行线性插值混合）
+	FragColor = mix(texture(myTexture01, TexCoord), texture(myTexture02, TexCoord), 0.4) * vec4(tempColor, 0.3 + (abs(sin(0.5 * time.x)) / 2.0f));
 }
