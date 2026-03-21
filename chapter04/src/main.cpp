@@ -49,21 +49,20 @@ int main() {
     Shader myShader("src/shaders/shader.vert","src/shaders/shader.frag");
 
     // 创建纹理
-    unsigned int texture;	// 引用 ID
-    glGenTextures(1, &texture);
-    glBindTexture(GL_TEXTURE_2D, texture);	// 绑定该2D纹理，进入对应状态机
-    // 设置各项参数
+    unsigned int texture01, texture02;	// 引用 ID
+    glGenTextures(1, &texture01);
+    glBindTexture(GL_TEXTURE_2D, texture01);	// 绑定该2D纹理，进入对应状态机
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);	// S 轴方向设置默认重复纹理
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);	// T 轴方向设置默认重复纹理
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINE);	// 缩小操作设置线性过滤
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINE);	// 放大操作设置线性过滤
     // 载入图像
-    int width, height, nrChannels;	// 宽，高，颜色通道数
+    int width01, height01, nrChannels01, width02, height02, nrChannels02;	// 宽，高，颜色通道数
     stbi_set_flip_vertically_on_load(true); // OpenGL 中 y 轴 0 坐标在图片底部，而 stbi 中 y 轴0坐标在顶部，需要在载入图片前调用该函数翻转
-    unsigned char *data = stbi_load("src/textures/laughlikes.jpg", &width, &height, &nrChannels, 0);	// 参数 0 表示保持原通道数
+    unsigned char *data = stbi_load("src/textures/laughlikes.png", &width01, &height01, &nrChannels01, 0);	// 参数 0 表示保持原通道数
     if(data) {
         // 生成纹理（纹理目标，多级渐远纹理级别，储存格式，纹理宽，纹理高，边框必需为0，源图格式，源图数据类型，图像数据）
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);	// 附着该纹理至绑定值
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width01, height01, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);	// 附着该纹理至绑定值
         glGenerateMipmap(GL_TEXTURE_2D);	// 为当前绑定的纹理自动生成多级渐远纹理
     }
     else {
@@ -71,19 +70,40 @@ int main() {
     }
     stbi_image_free(data);	// 释放图像内存
     
+    glGenTextures(1, &texture02);
+    glBindTexture(GL_TEXTURE_2D, texture02);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINE);
+    data = stbi_load("src/textures/REMblue.jpg", &width02, &height02, &nrChannels02, 0);
+    if(data) {
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width02, height02, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+        glGenerateMipmap(GL_TEXTURE_2D);
+    }
+    else {
+        std::cout << "Loading texture error!" << std::endl;
+    }
+    stbi_image_free(data);
+
+    glActiveTexture(GL_TEXTURE0);   // 激活纹理一（设定编号0）
+    glBindTexture(GL_TEXTURE_2D, texture01);  // 绑定纹理一
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, texture02);  // 绑定纹理二
+
     // 元素缓冲对象
     float vertices[] = { 
         // ---- 位置 ----		---- 颜色 ----		- 纹理坐标 -
          0.5f, -0.5f, 0.0f,		0.7f, 0.4f, 0.0f,	1.0f, 0.0f,	// 右下
          0.5f,  0.5f, 0.0f,		0.7f, 0.0f, 0.0f,	1.0f, 1.0f,	// 右上
-        -0.5f, -0.5f, 0.0f,		0.0f, 0.7f, 0.0f,	0.0f, 0.0f,	// 左下
+        -0.5f, -0.5f, 0.0f,		0.0f, 0.7f, 0.0f,	0.0f, 0.0f,	// 左下 
         -0.5f,  0.5f, 0.0f,		0.0f, 0.0f, 0.8f,	0.0f, 1.0f 	// 左上    
-    };
+    };    
     
     unsigned int indices[] = {	// 步长为 8*4 字节
         0, 1, 2, 
         1, 2, 3
-    };
+    };    
 	// 生成配置 VAO、EBO、VBO
 	unsigned int VAO, EBO, VBO;
     glGenVertexArrays(1, &VAO);   
@@ -103,18 +123,19 @@ int main() {
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
     
-
+    // 设置uniform 变量
+    myShader.use();
+    glUniform1i(glGetUniformLocation(myShader.ID, "myTexture01"), 0); // 手动设置
+    myShader.set1Int("myTexture02", 1); // 着色器类方法设置
+    
     while (!glfwWindowShouldClose(window)){
         processInput(window);
         // 背景重绘
 		glClearColor(0.8f, 0.8f, 0.8f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
-        // 加载着色器绘制
-        myShader.use();
         float timeValue = glfwGetTime();
         float colorValue[] = {timeValue, timeValue, timeValue};
         myShader.set3Floatv("time", colorValue);
-        glBindTexture(GL_TEXTURE_2D, texture);  // 绑定纹理
         glBindVertexArray(VAO);
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
         glfwSwapBuffers(window);
