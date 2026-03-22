@@ -1,0 +1,39 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"type": "cppbuild",
+			"label": "chapter06",
+			"command": "C:\\Developments\\mingw64\\15.2.0\\bin\\g++.exe",
+			"args": [
+				"-fdiagnostics-color=always",
+				"-g",
+				"${workspaceFolder}\\src\\*.cpp",
+					"${workspaceFolder}\\src\\glad.c",
+				"-o",
+				"${workspaceFolder}\\bin\\chapter06.exe",
+				"-I",
+				"${workspaceFolder}\\include",
+				"-L",
+				"${workspaceFolder}\\lib",
+				"-l",
+				"glfw3",
+				"-l",
+				"opengl32",
+				"-l",
+				"gdi32"
+			],
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"problemMatcher": [
+				"$gcc"
+			],
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"detail": "compiler: C:\\Developments\\mingw64\\15.2.0\\bin\\g++.exe"
+		}
+	]
+}
