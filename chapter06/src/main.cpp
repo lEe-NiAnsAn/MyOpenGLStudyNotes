@@ -85,42 +85,64 @@ int main() {
 		0, 1, 3,		// 侧面3（P0, P3, P1）
 		1, 2, 3			// 底面 （P1, P2, P3）
     };
-	
-	// 生成配置 VAO、EBO、VBO
-	// 绘制面
-	unsigned int VAO1, VAO2, EBO1, EBO2, VBO;
-    glGenVertexArrays(1, &VAO1);   
-    glGenBuffers(1, &EBO1);
-    glGenBuffers(1, &VBO);
-    glBindVertexArray(VAO1);
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO1);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(0));
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
-    glEnableVertexAttribArray(1);
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindVertexArray(0);
-	// 绘制线
-    glGenVertexArrays(1, &VAO2);   
-    glGenBuffers(1, &EBO2);
-    glBindVertexArray(VAO2);
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO2);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(0));
-    glEnableVertexAttribArray(0);
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindVertexArray(0);
-	
-	// 编译、创建着色器
-	Shader myShader("src/shaders/shader.vert","src/shaders/shader.frag");
-    myShader.use();
 
-	glEnable(GL_DEPTH_TEST);	// 启用深度测试
+    glm::vec3 tetrahedronPositions[] = { // 指定⑨个正四面体在全局空间的位置
+        glm::vec3( 0.0f,  0.0f,  0.0f), 
+        glm::vec3( 2.5f,  2.5f, -5.0f),
+        glm::vec3(-2.5f,  2.5f, -5.0f),
+        glm::vec3( 2.5f, -2.5f, -5.0f),
+        glm::vec3(-2.5f, -2.5f, -5.0f),
+        glm::vec3( 0.0f, -4.0f, -10.0f),
+        glm::vec3(-4.0f,  0.0f, -10.0f),
+        glm::vec3( 0.0f,  4.0f, -10.0f),
+        glm::vec3( 4.0f,  0.0f, -10.0f),
+    };
+        
+        // 生成配置 VAO、EBO、VBO
+        // 绘制面
+        unsigned int VAO1, VAO2, EBO1, EBO2, VBO;
+        glGenVertexArrays(1, &VAO1);   
+        glGenBuffers(1, &EBO1);
+        glGenBuffers(1, &VBO);
+        glBindVertexArray(VAO1);
+        glBindBuffer(GL_ARRAY_BUFFER, VBO);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO1);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(0));
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+        glEnableVertexAttribArray(1);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glBindVertexArray(0);
+        // 绘制线
+        glGenVertexArrays(1, &VAO2);   
+        glGenBuffers(1, &EBO2);
+        glBindVertexArray(VAO2);
+        glBindBuffer(GL_ARRAY_BUFFER, VBO);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO2);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(0));
+        glEnableVertexAttribArray(0);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glBindVertexArray(0);
+        
+        // 编译、创建着色器
+        Shader myShader("src/shaders/shader.vert","src/shaders/shader.frag");
+        myShader.use();
+    
+        // 设置观察矩阵，以实现全局空间的顶点坐标变换为观察空间的坐标
+        glm::mat4 view = glm::mat4(1.0f);
+        view = glm::translate(view, glm::vec3(0.0f, 0.0f, -3.0f));	// 在右手坐标系中 z 轴向内远离 3 个单位，实现摄像机后退的效果
+        // 设置投影矩阵，以实现观察空间的顶点坐标转变为裁剪空间的坐标
+        glm::mat4 projection = glm::mat4(1.0f);
+        // 使用透视投影（视场角，视口宽高比，平截头体近平面，平截头体远平面）
+        projection = glm::perspective(glm::radians(45.0f), (float)(screenWidth / screenHeight), 0.1f, 100.0f);
+        myShader.set4Mat("view", view);
+        myShader.set4Mat("projection", projection);	// 传入着色器
+        
+        glEnable(GL_DEPTH_TEST);	// 启用深度测试
 	
     while (!glfwWindowShouldClose(window)){
 		processInput(window);
@@ -131,37 +153,37 @@ int main() {
         float timeValue = glfwGetTime();
         float colorValue[] = {timeValue, timeValue, timeValue};
         myShader.set3Floatv("time", colorValue);
-	
-		// 设置模型矩阵，以实现局部空间的顶点坐标变换至全局空间内坐标
-		glm::mat4 model = glm::mat4(1.0f);
-		model = glm::rotate(model, (float)glfwGetTime() * glm::radians(50.0f), glm::vec3(0.5f, 1.0f, 0.0f));	// 绕 (0.5,1,0) 轴每秒顺时针旋转 50 度
-		// 设置观察矩阵，以实现全局空间的顶点坐标变换为观察空间的坐标
-		glm::mat4 view = glm::mat4(1.0f);
-		view = glm::translate(view, glm::vec3(0.0f, 0.0f, -3.0f));	// 在右手坐标系中 z 轴向内远离 3 个单位，实现摄像机后退的效果
-		// 设置投影矩阵，以实现观察空间的顶点坐标转变为裁剪空间的坐标
-		glm::mat4 projection = glm::mat4(1.0f);
-		// 使用透视投影（视场角，视口宽高比，平截头体近平面，平截头体远平面）
-		projection = glm::perspective(glm::radians(45.0f), (float)(screenWidth / screenHeight), 0.1f, 100.0f);
-		myShader.set4Mat("model", model);
-		myShader.set4Mat("view", view);
-		myShader.set4Mat("projection", projection);	// 传入着色器
 		
-	// 显示实时帧率
+        // 显示实时帧率
 		float currentFps = updateFPS();
 		if (fabsf(lastFps - currentFps) >= 0.1) {
-			lastFps = currentFps;
+            lastFps = currentFps;
 			std::cout << std::fixed << std::setprecision(1) << lastFps << " fps" << std::endl;
 		}
-
+        
         // 绘制面
         glBindVertexArray(VAO1);
-        glDrawElements(GL_TRIANGLES, 12, GL_UNSIGNED_INT, 0);
+        for (unsigned int i = 1; i <= 9; i++) {
+            // 设置模型矩阵，以实现局部空间的顶点坐标变换至全局空间内坐标
+            glm::mat4 model = glm::mat4(1.0f);
+            model = glm::translate(model, tetrahedronPositions[i]); // 选择全局坐标
+            float angle = 10.0f * i; 
+            model = glm::rotate(model, (float)glfwGetTime() * glm::radians(angle), glm::vec3(0.5f, 1.0f, 0.0f));    // 每秒绕 (0.5,1,0) 轴旋转 10n 度
+            myShader.set4Mat("model", model);
+            glDrawElements(GL_TRIANGLES, 12, GL_UNSIGNED_INT, 0);
+        }
         // 绘制线
         glBindVertexArray(VAO2);
-		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-		glDrawElements(GL_TRIANGLES, 12, GL_UNSIGNED_INT, 0);
-		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-
+        for (unsigned int i = 1; i <= 9; i++) {
+            glm::mat4 model = glm::mat4(1.0f);
+            model = glm::translate(model, tetrahedronPositions[i]);
+            float angle = 10.0f * i; 
+            model = glm::rotate(model, (float)glfwGetTime() * glm::radians(angle), glm::vec3(0.5f, 1.0f, 0.0f));
+            myShader.set4Mat("model", model);
+            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+            glDrawElements(GL_TRIANGLES, 12, GL_UNSIGNED_INT, 0);
+            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+        }
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
