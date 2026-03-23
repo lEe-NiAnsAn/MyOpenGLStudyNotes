@@ -10,16 +10,13 @@
 
 #include "shader.h"
 
+#define CAM_ORBITING 0  // 摄像机环绕拍摄
+#define CAM_MOVE 1  // 摄像机自由移动
+
 // 窗口随视口尺寸变化
 void framebuffer_size_callback(GLFWwindow *window, int width, int height) {
     glViewport(0, 0, width, height);
-}
-// 按下 Esc 退出
-void processInput(GLFWwindow *window) {
-	if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
-		glfwSetWindowShouldClose(window, true);
-	}
-}
+}    
 
 // 获取实时帧率
 double lastTime = glfwGetTime();
@@ -33,7 +30,101 @@ float updateFPS() {
         frameCount = 0;
         lastTime = currentTime;
     }
-	return fps;
+    return fps;
+}
+
+// 按键事件
+float deltaTime = 0.0f; // 帧间时差
+float lastFrame = 0.0f; // 上一帧时间点
+int cameraBehaviour = CAM_ORBITING; // 默认环绕拍摄
+glm::vec3 cameraPos2 = glm::vec3(0.0f, 0.0f, 3.0f);
+glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -1.0f);   // 摄像机所摄方向
+glm::vec3 cameraUp2 = glm::vec3(0.0f, 1.0f, 0.0f);
+void processInput(GLFWwindow *window) {
+    // 按下 R 变更摄像机行为
+    static bool lastRState = false;   // 记录上一帧 R 键状态
+    bool currentRState = glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS;
+    if (currentRState && !lastRState) { // 按下 R 键后的首帧改变行为
+        if (cameraBehaviour == CAM_ORBITING){
+            cameraBehaviour = CAM_MOVE;
+        }    
+        else if (cameraBehaviour == CAM_MOVE) {
+            cameraBehaviour = CAM_ORBITING;
+        }    
+        std::cout << "Camera behaviour had been Changed." << std::endl;
+    }    
+    lastRState = currentRState;
+    
+    // 按下 WASD 改变摄像机位置
+    float currentFrame = glfwGetTime();
+    deltaTime = currentFrame - lastFrame;   // 计算时间差，使得不同设备的速度相同
+    lastFrame = currentFrame;
+    float cameraSpeed = 2.5f * deltaTime;  // 摄像机移动速度
+	if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) { // 向负z轴方向前进
+        cameraPos2 += cameraSpeed * cameraFront;    
+    }    
+	if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) { // 向负x轴左移
+        cameraPos2 -= glm::normalize(glm::cross(cameraFront, cameraUp2)) * cameraSpeed;
+    }    
+	if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) { // 向正z轴方向后退
+        cameraPos2 -= cameraSpeed * cameraFront;
+    }    
+	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) { // 向正x轴右移
+        cameraPos2 += glm::normalize(glm::cross(cameraFront, cameraUp2)) * cameraSpeed;
+    }    
+    
+    // 按下 Esc 退出窗口
+	if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
+        glfwSetWindowShouldClose(window, true);
+	}    
+}    
+
+int screenWidth = 800;
+int screenHeight = 800;	// 设置显示宽高
+float lastX = screenWidth / 2.0f;   // 鼠标上一帧坐标x值
+float lastY = screenHeight / 2.0f;  // 鼠标上一帧坐标y值
+float pitch = 0.0f; // 俯仰角
+float yaw = -90.0f;   // 偏航角  
+float fov = 45.0f;  // 视场角
+bool firstMouse = true; // 是否首次捕获鼠标
+// 鼠标事件
+void mouse_callback(GLFWwindow* window, double xposIn, double yposIn) {
+    if (cameraBehaviour == CAM_ORBITING) {	// 非当前摄像机行为及时退出程序，并将是否首次捕捉鼠标标志置为初始值
+		firstMouse = true;
+		return;
+	}
+
+	float xpos = static_cast<float>(xposIn);
+    float ypos = static_cast<float>(yposIn);	// 回调函数默认传入的 double 类型转换为 float 类型
+
+    if (firstMouse) {	// 初次获取鼠标时为鼠标坐标赋传入值
+        lastX = xpos;
+        lastY = ypos;
+        firstMouse = false;
+    }
+
+    float xoffset = xpos - lastX;	// 检查鼠标帧间移动距离
+    float yoffset = lastY - ypos;	// y坐标自底部往顶部依次增大的，故相反
+    lastX = xpos;
+    lastY = ypos;
+
+    float sensitivity = 0.05f;	// 灵敏度
+    xoffset *= sensitivity;
+    yoffset *= sensitivity;
+
+    yaw += xoffset;
+    pitch += yoffset;	// 添加偏移量
+
+    if (pitch > 89.0f)
+        pitch = 89.0f;
+    if (pitch < -89.0f)
+        pitch = -89.0f;	// 设置角度范围
+
+    glm::vec3 front;
+    front.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
+    front.y = sin(glm::radians(pitch));
+    front.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
+    cameraFront = glm::normalize(front);
 }
 
 int main() {
@@ -43,8 +134,6 @@ int main() {
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3); 
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     // 创建窗口
-	int screenWidth = 800;
-	int screenHeight = 800;	// 设置宽高
 	GLFWwindow* window = glfwCreateWindow(screenWidth, screenHeight, "Learning Chapter07", NULL, NULL);
     if (window == NULL) {
         std::cout << "Create GLFW Window Failed!" << std::endl;
@@ -64,6 +153,11 @@ int main() {
     glViewport(0, 0, screenWidth, screenHeight);
 	// 垂直同步
 	// glfwSwapInterval(1);
+
+	// 检测鼠标事件并调用回调函数
+	glfwSetCursorPosCallback(window, mouse_callback);
+	// 捕捉鼠标及其运动，在窗口中不可见并将其锁定在窗口中心
+	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED); 
 	
     // 元素缓冲对象
 	float R = 0.8f;
@@ -128,6 +222,7 @@ int main() {
 	
     while (!glfwWindowShouldClose(window)){
 		processInput(window);
+
         // 背景重绘
 		glClearColor(0.8f, 0.8f, 0.8f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);	// 清除屏幕缓冲与深度缓冲
@@ -145,26 +240,38 @@ int main() {
         
 		float time = glfwGetTime();
 
-		// 设置摄像机位置坐标
+		// 摄像机环绕拍摄
 		float radius = 5.0f;	// 摄像机绕xOz平面轨迹半径
 		float camX = sinf(2.0f * time) * radius;	// 摄像机x坐标
 		float camY = 0.0f;	// 摄像机y坐标
 		float camZ = cosf(2.0f * time) * radius;	// 摄像机z坐标
-		glm::vec3 cameraPos = glm::vec3(camX, camY, camZ);	// 摄像机位于全局空间的坐标
+		glm::vec3 cameraPos1 = glm::vec3(camX, camY, camZ);	// 摄像机位于全局空间的坐标
 		// 设置摄像机朝向的反方向（正z轴）
 		glm::vec3 cameraTarget = glm::vec3(0.0f, 0.0f, 0.0f);	// 摄像机所摄目标（全局原点）
-		glm::vec3 cameraDirection = glm::normalize(cameraPos - cameraTarget);	// 归一化坐标差即为方向向量（交换减数与被减数实现所得方向向量由目标指向摄像机，即摄像机的正z轴方向）
+		glm::vec3 cameraDirection1 = glm::normalize(cameraPos1 - cameraTarget);	// 归一化坐标差即为方向向量（交换减数与被减数实现所得方向向量由目标指向摄像机，即摄像机的正z轴方向）
 		// 设置摄像机的右轴（正x轴）
 		glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);	// 向上单位向量
-		glm::vec3 cameraRight = glm::normalize(glm::cross(up, cameraDirection));	// 向上单位向量右叉乘正z轴方向向量即为正x轴方向
+		glm::vec3 cameraRight = glm::normalize(glm::cross(up, cameraDirection1));	// 向上单位向量右叉乘正z轴方向向量即为正x轴方向
 		// 设置摄像机的上轴（正y轴）
-		glm::vec3 cameraUp = glm::cross(cameraDirection, cameraRight);	// 正z轴方向右叉乘正x轴方向即为正y轴方向
+		glm::vec3 cameraUp1 = glm::cross(cameraDirection1, cameraRight);	// 正z轴方向右叉乘正x轴方向即为正y轴方向
 		// 设置观察矩阵
-		glm::mat4 view = glm::mat4(1.0f);
+		glm::mat4 view1 = glm::mat4(1.0f);
 		// LookAt矩阵：若三个相互垂直的向量定义了一个坐标空间，则利用该坐标系“三轴正方向”所构成的“四行四列矩阵”右乘“平移向量”所构成的“四行四列矩阵”后所得的矩阵（其中平移向量为参数位置向量的反方向）
 		// 任一向量乘以LookAt矩阵可将其变换为目标坐标空间中的向量，达到变更全局空间视角至摄像机视角的效果
-		view = glm::lookAt(cameraPos, cameraTarget, up);	// 通过同上述的计算得到三个坐标轴正方向以及位置向量的反方向
-		myShader.set4Mat("view", view);
+		view1 = glm::lookAt(cameraPos1, cameraTarget, up);	// 通过同上述的计算得到三个坐标轴正方向以及位置向量的反方向
+        
+        // 摄像机自由移动
+
+		glm::mat4 view2 = glm::mat4(1.0f);
+        view2 = glm::lookAt(cameraPos2, cameraPos2 + cameraFront, cameraUp2);
+        
+        // 选择摄像机行为
+        if (cameraBehaviour == CAM_ORBITING) {
+            myShader.set4Mat("view", view1);
+        }
+        else if (cameraBehaviour == CAM_MOVE) {
+            myShader.set4Mat("view", view2);
+        }
 		
 		// 设置投影矩阵
 		glm::mat4 projection = glm::mat4(1.0f);
