@@ -163,21 +163,21 @@ int main() {
         
         // 绘制面
         glBindVertexArray(VAO1);
-        for (unsigned int i = 1; i <= 9; i++) {
+        for (unsigned int i = 0; i < 9; i++) {
             // 设置模型矩阵，以实现局部空间的顶点坐标变换至全局空间内坐标
             glm::mat4 model = glm::mat4(1.0f);
             model = glm::translate(model, tetrahedronPositions[i]); // 选择全局坐标
-            float angle = 10.0f * i; 
+            float angle = 10.0f * (i + 1); 
             model = glm::rotate(model, (float)glfwGetTime() * glm::radians(angle), glm::vec3(0.5f, 1.0f, 0.0f));    // 每秒绕 (0.5,1,0) 轴旋转 10n 度
             myShader.set4Mat("model", model);
             glDrawElements(GL_TRIANGLES, 12, GL_UNSIGNED_INT, 0);
         }
         // 绘制线
         glBindVertexArray(VAO2);
-        for (unsigned int i = 1; i <= 9; i++) {
+        for (unsigned int i = 0; i < 9; i++) {
             glm::mat4 model = glm::mat4(1.0f);
             model = glm::translate(model, tetrahedronPositions[i]);
-            float angle = 10.0f * i; 
+            float angle = 10.0f * (i + 1); 
             model = glm::rotate(model, (float)glfwGetTime() * glm::radians(angle), glm::vec3(0.5f, 1.0f, 0.0f));
             myShader.set4Mat("model", model);
             glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
