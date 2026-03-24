@@ -12,10 +12,31 @@
 
 #define CAM_ORBITING 0  // 摄像机环绕拍摄
 #define CAM_MOVE 1  // 摄像机自由移动
+#define CURSOR_CATCH 2  // 捕获鼠标
+#define CURSOR_RELEASE 3  // 释放鼠标
+
+int screenWidth = 800;
+int screenHeight = 800;	// 设置显示宽高
+float lastX = screenWidth / 2.0f;   // 鼠标上一帧坐标x值
+float lastY = screenHeight / 2.0f;  // 鼠标上一帧坐标y值
+bool firstMouse = true; // 是否首次捕获鼠标
+int mouseBehaviour = CURSOR_CATCH; // 默认捕获鼠标
+float fov = 45.0f;  // 视场角
+
+float pitch = 0.0f; // 俯仰角
+float yaw = -90.0f;   // 偏航角  
+float deltaTime = 0.0f; // 帧间时差
+float lastFrame = 0.0f; // 上一帧时间点
+int cameraBehaviour = CAM_ORBITING; // 默认环绕拍摄
+glm::vec3 cameraPos2 = glm::vec3(0.0f, 0.0f, 3.0f);
+glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -1.0f);   // 摄像机所摄方向
+glm::vec3 cameraUp2 = glm::vec3(0.0f, 1.0f, 0.0f);
 
 // 窗口随视口尺寸变化
 void framebuffer_size_callback(GLFWwindow *window, int width, int height) {
     glViewport(0, 0, width, height);
+    screenWidth = width;
+    screenHeight = height;
 }    
 
 // 获取实时帧率
@@ -33,63 +54,9 @@ float updateFPS() {
     return fps;
 }
 
-// 按键事件
-float deltaTime = 0.0f; // 帧间时差
-float lastFrame = 0.0f; // 上一帧时间点
-int cameraBehaviour = CAM_ORBITING; // 默认环绕拍摄
-glm::vec3 cameraPos2 = glm::vec3(0.0f, 0.0f, 3.0f);
-glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -1.0f);   // 摄像机所摄方向
-glm::vec3 cameraUp2 = glm::vec3(0.0f, 1.0f, 0.0f);
-void processInput(GLFWwindow *window) {
-    // 按下 R 变更摄像机行为
-    static bool lastRState = false;   // 记录上一帧 R 键状态
-    bool currentRState = glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS;
-    if (currentRState && !lastRState) { // 按下 R 键后的首帧改变行为
-        if (cameraBehaviour == CAM_ORBITING){
-            cameraBehaviour = CAM_MOVE;
-        }    
-        else if (cameraBehaviour == CAM_MOVE) {
-            cameraBehaviour = CAM_ORBITING;
-        }    
-        std::cout << "Camera behaviour had been Changed." << std::endl;
-    }    
-    lastRState = currentRState;
-    
-    // 按下 WASD 改变摄像机位置
-    float currentFrame = glfwGetTime();
-    deltaTime = currentFrame - lastFrame;   // 计算时间差，使得不同设备的速度相同
-    lastFrame = currentFrame;
-    float cameraSpeed = 2.5f * deltaTime;  // 摄像机移动速度
-	if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) { // 向负z轴方向前进
-        cameraPos2 += cameraSpeed * cameraFront;    
-    }    
-	if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) { // 向负x轴左移
-        cameraPos2 -= glm::normalize(glm::cross(cameraFront, cameraUp2)) * cameraSpeed;
-    }    
-	if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) { // 向正z轴方向后退
-        cameraPos2 -= cameraSpeed * cameraFront;
-    }    
-	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) { // 向正x轴右移
-        cameraPos2 += glm::normalize(glm::cross(cameraFront, cameraUp2)) * cameraSpeed;
-    }    
-    
-    // 按下 Esc 退出窗口
-	if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
-        glfwSetWindowShouldClose(window, true);
-	}    
-}    
-
-int screenWidth = 800;
-int screenHeight = 800;	// 设置显示宽高
-float lastX = screenWidth / 2.0f;   // 鼠标上一帧坐标x值
-float lastY = screenHeight / 2.0f;  // 鼠标上一帧坐标y值
-float pitch = 0.0f; // 俯仰角
-float yaw = -90.0f;   // 偏航角  
-float fov = 45.0f;  // 视场角
-bool firstMouse = true; // 是否首次捕获鼠标
-// 鼠标事件
+// 鼠标指针事件
 void mouse_callback(GLFWwindow* window, double xposIn, double yposIn) {
-    if (cameraBehaviour == CAM_ORBITING) {	// 非当前摄像机行为及时退出程序，并将是否首次捕捉鼠标标志置为初始值
+    if (cameraBehaviour == CAM_ORBITING || mouseBehaviour == CURSOR_RELEASE) {	// 非当前摄像机/鼠标行为及时退出程序，并将是否首次捕捉鼠标标志置为初始值
 		firstMouse = true;
 		return;
 	}
@@ -102,30 +69,84 @@ void mouse_callback(GLFWwindow* window, double xposIn, double yposIn) {
         lastY = ypos;
         firstMouse = false;
     }
-
+    
     float xoffset = xpos - lastX;	// 检查鼠标帧间移动距离
     float yoffset = lastY - ypos;	// y坐标自底部往顶部依次增大的，故相反
     lastX = xpos;
     lastY = ypos;
-
+    
     float sensitivity = 0.05f;	// 灵敏度
     xoffset *= sensitivity;
     yoffset *= sensitivity;
-
+    
     yaw += xoffset;
     pitch += yoffset;	// 添加偏移量
-
+    
     if (pitch > 89.0f)
-        pitch = 89.0f;
+    pitch = 89.0f;
     if (pitch < -89.0f)
-        pitch = -89.0f;	// 设置角度范围
-
+    pitch = -89.0f;	// 设置角度范围
+    
     glm::vec3 front;
     front.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
     front.y = sin(glm::radians(pitch));
     front.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
     cameraFront = glm::normalize(front);
 }
+
+// 鼠标滚轮事件
+void scroll_callback(GLFWwindow* window, double xoffsetIn, double yoffsetIn) {
+    float yoffset = static_cast<float>(yoffsetIn);
+    fov -= yoffset;	// 向上滚动增大fov，反之减小）
+    if (fov < 1.0f) fov = 1.0f;
+    if (fov > 120.0f) fov = 120.0f;	// 限制范围
+}
+
+// 按键事件
+void processInput(GLFWwindow *window) {
+    // 按下 R 变更摄像机及鼠标行为
+    static bool lastRState = false;   // 记录上一帧 R 键状态
+    bool currentRState = glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS;
+    if (currentRState && !lastRState) { // 按下 R 键后的首帧改变行为
+        if (cameraBehaviour == CAM_ORBITING){
+            cameraBehaviour = CAM_MOVE;
+            // 捕捉鼠标及其运动，指针不可见并将其锁定在窗口中心
+            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED); 
+        }    
+        else if (cameraBehaviour == CAM_MOVE) {
+            cameraBehaviour = CAM_ORBITING;
+            // 捕获鼠标及其运动，指针可见并可将其移出窗口外
+            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+        }    
+        glfwSetCursorPos(window, screenWidth / 2.0f, screenHeight / 2.0f);  // 鼠标指针置中
+		fov = 45.0f;	// 视场角恢复初始值
+        std::cout << "Camera behaviour had been Changed." << std::endl;
+    }    
+    lastRState = currentRState;
+    
+    // 按下 WASD 改变摄像机位置
+    float currentFrame = glfwGetTime();
+    deltaTime = currentFrame - lastFrame;   // 计算时间差，使得不同设备的速度相同
+    lastFrame = currentFrame;
+    float cameraSpeed = 2.5f * deltaTime;  // 摄像机移动速度
+    if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) { // 向负z轴方向前进
+        cameraPos2 += cameraSpeed * cameraFront;    
+    }    
+    if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) { // 向负x轴左移
+        cameraPos2 -= glm::normalize(glm::cross(cameraFront, cameraUp2)) * cameraSpeed;
+    }    
+    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) { // 向正z轴方向后退
+        cameraPos2 -= cameraSpeed * cameraFront;
+    }    
+    if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) { // 向正x轴右移
+        cameraPos2 += glm::normalize(glm::cross(cameraFront, cameraUp2)) * cameraSpeed;
+    }    
+    
+    // 按下 Esc 退出窗口
+    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
+        glfwSetWindowShouldClose(window, true);
+    }    
+}    
 
 int main() {
     // 初始化
@@ -154,10 +175,10 @@ int main() {
 	// 垂直同步
 	// glfwSwapInterval(1);
 
-	// 检测鼠标事件并调用回调函数
+	// 检测鼠标移动事件并调用回调函数
 	glfwSetCursorPosCallback(window, mouse_callback);
-	// 捕捉鼠标及其运动，在窗口中不可见并将其锁定在窗口中心
-	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED); 
+	// 检测鼠标滚轮事件并调用回调函数
+	glfwSetScrollCallback(window, scroll_callback);
 	
     // 元素缓冲对象
 	float R = 0.8f;
@@ -261,7 +282,6 @@ int main() {
 		view1 = glm::lookAt(cameraPos1, cameraTarget, up);	// 通过同上述的计算得到三个坐标轴正方向以及位置向量的反方向
         
         // 摄像机自由移动
-
 		glm::mat4 view2 = glm::mat4(1.0f);
         view2 = glm::lookAt(cameraPos2, cameraPos2 + cameraFront, cameraUp2);
         
@@ -275,7 +295,7 @@ int main() {
 		
 		// 设置投影矩阵
 		glm::mat4 projection = glm::mat4(1.0f);
-		projection = glm::perspective(glm::radians(45.0f), (float)(screenWidth / screenHeight), 0.1f, 100.0f);  // 透视投影
+		projection = glm::perspective(glm::radians(fov), (float)(screenWidth / screenHeight), 0.1f, 100.0f);  // 透视投影
 		myShader.set4Mat("projection", projection);	// 传入着色器
 		
         // 设置模型矩阵
