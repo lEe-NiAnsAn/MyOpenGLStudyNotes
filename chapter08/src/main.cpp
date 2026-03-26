@@ -18,6 +18,7 @@ enum Color_Flag {
 	COLOR_TETRAHEDRON	= 1,	// 四面体颜色
 	COLOR_LINE 			= 2 	// 框线颜色
 };
+int colorFlagValue;
 enum Light_Style {
 	SOFT_EDGES			= 3,	// 柔边
 	HARD_EDGES			= 4		// 硬边
@@ -249,8 +250,10 @@ int main() {
 		if (lightStyle == SOFT_EDGES) {ambientStrength = 0.5f;}	// 环境光照强度
 		myShader.set3Floatv("lightColor", lightColor);
 		myShader.set1Float("ambientStrength", ambientStrength);
-		float lightPosA[] = { lightPos.x, lightPos.y, lightPos.z };
-		myShader.set3Floatv("lightPos", lightPosA);	// 传入光源坐标
+		myShader.setVec3("lightPos", lightPos);	// 传入光源坐标
+        myShader.setVec3("viewPos", myCamera.m_position);  // 传入摄像机坐标
+        float specularStrength = 0.4f;   // 镜面反射强度
+        myShader.set1Float("specularStrength", specularStrength);
 		
         // 设置 LookAt 矩阵
         myShader.set4Mat("view", myCamera.GetViewMatrix());
@@ -264,30 +267,31 @@ int main() {
 		model = glm::translate(model, glm::vec3(0.0f, 0.6f, 0.0f));
         myShader.set4Mat("model", model);
 
-        int colorFlagValue = COLOR_TETRAHEDRON;
-        myShader.set1Int("colorFlag", colorFlagValue);
 		float objectColor[] = {1.0f, 1.0f, 0.0f};
+        float lineColor[] = {0.8f, 0.8f, 0.3f};
 		myShader.set3Floatv("objectColor", objectColor);
-		if (lightStyle == SOFT_EDGES) {	// 绘制面（柔边）
+		if (lightStyle == SOFT_EDGES) {	// 绘制面（柔边透射）
+            colorFlagValue = COLOR_TETRAHEDRON;
+            myShader.set1Int("colorFlag", colorFlagValue);
 			glBindVertexArray(VAO1);
 			glDrawElements(GL_TRIANGLES, 12, GL_UNSIGNED_INT, 0);
 			// 绘制线框	
 			colorFlagValue = COLOR_LINE;
 			myShader.set1Int("colorFlag", colorFlagValue);
-			float lineColor[] = {0.55f, 0.55f, 0.1f};
 			myShader.set3Floatv("lineColor", lineColor);
 			glBindVertexArray(VAO2);
 			glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 			glDrawElements(GL_TRIANGLES, 12, GL_UNSIGNED_INT, 0);
 			glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 		}
-		if (lightStyle == HARD_EDGES) {	// 绘制面（硬边）
+		if (lightStyle == HARD_EDGES) {	// 绘制面（硬边非透）
+            colorFlagValue = COLOR_TETRAHEDRON;
+            myShader.set1Int("colorFlag", colorFlagValue);
 			glBindVertexArray(VAOe);
 			glDrawArrays(GL_TRIANGLES, 0, 36);
 			// 绘制线框	
 			colorFlagValue = COLOR_LINE;
 			myShader.set1Int("colorFlag", colorFlagValue);
-			float lineColor[] = {0.35f, 0.35f, 0.1f};
 			myShader.set3Floatv("lineColor", lineColor);
 			glBindVertexArray(VAO2);
 			glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
