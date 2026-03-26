@@ -10,6 +10,9 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb/stb_image.h"
+
 #include "shader.h"
 #include "camera.h"
 
@@ -19,11 +22,6 @@ enum Color_Flag {
 	COLOR_LINE 			= 2 	// 框线颜色
 };
 int colorFlagValue;
-enum Light_Style {
-	SOFT_EDGES			= 3,	// 柔边
-	HARD_EDGES			= 4		// 硬边
-};
-static int lightStyle = HARD_EDGES;	// 默认硬边
 bool Camera::m_fly = false;			// 默认不可飞行
 
 int screenWidth = 800;
@@ -51,7 +49,6 @@ void scroll_callback(GLFWwindow* window, double xoffsetIn, double yoffsetIn);
 // 按键事件
 void processInput(GLFWwindow *window);
 // 法线向量计算
-std::vector<float> GetVerticesNormal(const float* vertices, size_t vertices_length, const unsigned int* indices, size_t indices_length);
 std::vector<float> GetVerticesNormal(const float* vertices, size_t vertices_length);
 
 int main() {
@@ -61,7 +58,7 @@ int main() {
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3); 
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     // 创建窗口
-	GLFWwindow* window = glfwCreateWindow(screenWidth, screenHeight, "Learning Chapter08", NULL, NULL);
+	GLFWwindow* window = glfwCreateWindow(screenWidth, screenHeight, "Learning Chapter09", NULL, NULL);
     if (window == NULL) {
 		std::cout << "Create GLFW Window Failed!" << std::endl;
         glfwTerminate();
@@ -87,105 +84,89 @@ int main() {
 	// 检测鼠标滚轮事件并调用回调函数
 	glfwSetScrollCallback(window, scroll_callback);
 	
+	// 编译、创建着色器
+	Shader myShader("src/shaders/shader.vert","src/shaders/shader.frag");
+	Shader lightShader("src/shaders/lightShader.vert","src/shaders/lightShader.frag");
+
+    // 创建纹理
+    unsigned int diffuseMap;
+    glGenTextures(1, &diffuseMap);
+    glBindTexture(GL_TEXTURE_2D, diffuseMap);	// 绑定纹理
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);	// S 轴方向默认重复纹理
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);	// T 轴方向默认重复纹理
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINE);	// 线性过滤缩小
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINE);	// 线性过滤放大
+    // 载入图像
+    int width, height, nrChannels;
+    stbi_set_flip_vertically_on_load(true); // 翻转y轴
+    unsigned char *data = stbi_load("src/textures/laughlikes.png", &width, &height, &nrChannels, 0);
+    if(data) {
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);	// 附着纹理
+        glGenerateMipmap(GL_TEXTURE_2D);	// 生成多级渐远纹理
+    }
+    else {
+        std::cout << "Loading texture error!" << std::endl;
+    }
+    stbi_image_free(data);						// 释放图像内存
+    glActiveTexture(GL_TEXTURE0);				// 激活纹理0
+    glBindTexture(GL_TEXTURE_2D, diffuseMap);	// 绑定该纹理
+	myShader.set1Int("material.diffuse", 0);	// 传入纹理0
+	
     // 元素缓冲对象
 	float R = 0.8f;
 	float a = (2.0f * sqrtf(6.0f) / 3.0f) * R;
 	float r = a / sqrtf(3.0f);
 	float H = sqrtf(powf(a, 2.0f) - powf(r, 2.0f));
 	float h = H - R;
-    float vertices1[] = { 
-		0.0f,		 R,		 0.0f,					        // 锥顶P0
-		0.0f,		-h,		 r,						        // 底面顶点P1
-		a / 2.0f,	-h,		-(a / 2.0f) / sqrtf(3.0f),      // 底面顶点P2
-		-a / 2.0f,	-h,		-(a / 2.0f) / sqrtf(3.0f),      // 底面顶点P3
+	float t01 = 0.5f;
+	float t02 = 1.0f;
+	float t11 = 0.5f - sqrtf(3.0f) / 4.0f;
+	float t12 = 0.25f;
+	float t21 = 0.5f + sqrtf(3.0f) / 4.0f;
+	float t22 = 0.25f;
+    float vertices[] = {
+	//		------ 顶点坐标 ------					  ------ 纹理坐标 ------
+		0.0f,		 R,		 0.0f,					  		t01, t02,     	// 锥顶P0
+		0.0f,		-h,		 r,						  		t11, t12,     	// 底面顶点P1
+		a / 2.0f,	-h,		-(a / 2.0f) / sqrtf(3.0f),		t21, t22,     	// 底面顶点P2
+
+		0.0f,		 R,		 0.0f,					  		t01, t02,     	// 锥顶P0
+		a / 2.0f,	-h,		-(a / 2.0f) / sqrtf(3.0f),		t11, t12,     	// 底面顶点P2
+		-a / 2.0f,	-h,		-(a / 2.0f) / sqrtf(3.0f),		t21, t22,     	// 底面顶点P3
+
+		0.0f,		 R,		 0.0f,					  		t01, t02,     	// 锥顶P0
+		-a / 2.0f,	-h,		-(a / 2.0f) / sqrtf(3.0f),		t11, t12,     	// 底面顶点P3
+		0.0f,		-h,		 r,						  		t21, t22,     	// 底面顶点P1
+ 
+		0.0f,		-h,		 r,						  		t01, t02,     	// 底面顶点P1
+		-a / 2.0f,	-h,		-(a / 2.0f) / sqrtf(3.0f),		t11, t12,     	// 底面顶点P3
+		a / 2.0f,	-h,		-(a / 2.0f) / sqrtf(3.0f),		t21, t22    	// 底面顶点P2
     };
-    float vertices2[] = { 
-		0.0f,		 R,		 0.0f,					        // 锥顶P0
-		0.0f,		-h,		 r,						        // 底面顶点P1
-		a / 2.0f,	-h,		-(a / 2.0f) / sqrtf(3.0f),      // 底面顶点P2
-		
-		0.0f,		 R,		 0.0f,					        // 锥顶P0
-		a / 2.0f,	-h,		-(a / 2.0f) / sqrtf(3.0f),      // 底面顶点P2
-		-a / 2.0f,	-h,		-(a / 2.0f) / sqrtf(3.0f),      // 底面顶点P3
-		
-		0.0f,		 R,		 0.0f,					        // 锥顶P0
-		-a / 2.0f,	-h,		-(a / 2.0f) / sqrtf(3.0f),      // 底面顶点P3
-		0.0f,		-h,		 r,						        // 底面顶点P1
-		
-		0.0f,		-h,		 r,						        // 底面顶点P1
-		-a / 2.0f,	-h,		-(a / 2.0f) / sqrtf(3.0f),      // 底面顶点P3
-		a / 2.0f,	-h,		-(a / 2.0f) / sqrtf(3.0f),      // 底面顶点P2
-    };
-    unsigned int indices[] = {  // 元素索引
-		0, 1, 2,
-		0, 2, 3,
-		0, 3, 1,
-		1, 3, 2	
-    };
-	
-	// 漫反射（柔边）法向量
-	size_t vertices1_length = sizeof(vertices1) / sizeof(vertices1[0]);	// 原顶点数组元素个数
-	size_t indices_length = sizeof(indices) / sizeof(indices[0]);		// 索引元素个数
-	std::vector<float> vertices1_normal;		// 临时顶点容器
-	vertices1_normal = GetVerticesNormal(vertices1, vertices1_length, indices, indices_length);	// 计算顶点法线向量
-	size_t vertices1_normal_count = vertices1_normal.size();	// 容器长度
-	float vertices1_normal_array[vertices1_normal_count];
-	for (size_t i = 0; i < vertices1_normal_count; i++) {	// 复制到新的顶点数组
-		vertices1_normal_array[i] = vertices1_normal[i];
-	}
-	// 漫反射（硬边）法向量
-	size_t vertices2_length = sizeof(vertices2) / sizeof(vertices2[0]);	// 原顶点数组元素个数
-	std::vector<float> vertices2_normal;		// 临时顶点容器
-	vertices2_normal = GetVerticesNormal(vertices2, vertices2_length);	// 计算顶点法线向量
-	size_t vertices2_normal_count = vertices2_normal.size();	// 容器长度
-	float vertices2_normal_array[vertices2_normal_count];
-	for (size_t i = 0; i < vertices2_normal_count; i++) {	// 复制到新的顶点数组
-		vertices2_normal_array[i] = vertices2_normal[i];
+
+	// 漫反射法向量
+	size_t vertices_length = sizeof(vertices) / sizeof(vertices[0]);	// 原顶点数组元素个数
+	std::vector<float> vertices_normal;		// 临时顶点容器
+	vertices_normal = GetVerticesNormal(vertices, vertices_length);	// 计算顶点法线向量
+	size_t vertices_normal_count = vertices_normal.size();	// 容器长度
+	float vertices_normal_array[vertices_normal_count];
+	for (size_t i = 0; i < vertices_normal_count; i++) {	// 复制到新的顶点数组
+		vertices_normal_array[i] = vertices_normal[i];
 	}
 
     // 生成配置 VAO、EBO、VBO
-    unsigned int VAO1, VAO2, VAOe, VAOLight, EBO1, EBO2, EBOLight, VBO, VBOe, VBOLight;
+    unsigned int VAO, VAOLight, EBOLight, VBO, VBOLight;
 
-    // 绘制面（柔边）
-    glGenVertexArrays(1, &VAO1);   
-    glGenBuffers(1, &EBO1);
+    glGenVertexArrays(1, &VAO);   
     glGenBuffers(1, &VBO);
-    glBindVertexArray(VAO1);
+    glBindVertexArray(VAO);
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices1_normal_array), vertices1_normal_array, GL_STATIC_DRAW);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO1);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(0));
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices_normal_array), vertices_normal_array, GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(0));
     glEnableVertexAttribArray(0);
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(3 * sizeof(float)));
     glEnableVertexAttribArray(1);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindVertexArray(0);
-	// 绘制面（硬边）
-    glGenVertexArrays(1, &VAOe);   
-    glGenBuffers(1, &VBOe);
-    glBindVertexArray(VAOe);
-    glBindBuffer(GL_ARRAY_BUFFER, VBOe);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices2_normal_array), vertices2_normal_array, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(0));
-    glEnableVertexAttribArray(0);
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
-    glEnableVertexAttribArray(1);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindVertexArray(0);
-
-    // 绘制线
-    glGenVertexArrays(1, &VAO2);   
-    glGenBuffers(1, &EBO2);
-    glBindVertexArray(VAO2);
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices1_normal_array), vertices1_normal_array, GL_STATIC_DRAW);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO2);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(0));
-    glEnableVertexAttribArray(0);
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
-    glEnableVertexAttribArray(1);
+	glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(5 * sizeof(float)));
+    glEnableVertexAttribArray(2);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
 
@@ -220,10 +201,6 @@ int main() {
 	glEnableVertexAttribArray(0);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glBindVertexArray(0);
-	
-    // 编译、创建着色器
-    Shader myShader("src/shaders/shader.vert","src/shaders/shader.frag");
-    Shader lightShader("src/shaders/lightShader.vert","src/shaders/lightShader.frag");
     
     glEnable(GL_DEPTH_TEST);	// 启用深度测试
 	
@@ -250,17 +227,10 @@ int main() {
 		myShader.setVec3("light.position", lightPos);
 		glm::vec3 lightColor(1.0f, 1.0f, 1.0f);	// 设置光源颜色
 		myShader.setVec3("light.diffuse", glm::vec3(0.6f) * lightColor);	// 传入漫反射光强分量
-		myShader.setVec3("light.specular", lightColor);			// 传入反射光强分量
-		if (lightStyle == HARD_EDGES) {	// 硬边硬光源
-			myShader.setVec3("light.ambient", glm::vec3(0.2f) * lightColor);	// 传入环境光强分量
-		}
-		if (lightStyle == SOFT_EDGES) {	// 软边软光源
-			myShader.setVec3("light.ambient", glm::vec3(0.3f) * lightColor);
-		}
-		myShader.setVec3("material.diffuse", glm::vec3(1.0f, 1.0f, 0.0f));	// 漫反射光颜色（固有色）
-		myShader.setVec3("material.ambient", glm::vec3(0.8f, 0.8f, 0.4f));	// 环境光颜色
+		myShader.setVec3("light.specular", lightColor);						// 传入镜面反射光强分量
+		myShader.setVec3("light.ambient", glm::vec3(0.2f) * lightColor);	// 传入环境光强分量
 		myShader.setVec3("material.specular", glm::vec3(0.5f, 0.5f, 0.5f));	// 传入镜面反射光颜色
-		myShader.set1Float("material.shininess", 32.0f);	// 传入镜面高光散射度
+		myShader.set1Float("material.shininess", 32.0f);					// 传入镜面高光散射度
 		
         // 设置 LookAt 矩阵
         myShader.set4Mat("view", myCamera.GetViewMatrix());
@@ -274,35 +244,11 @@ int main() {
 		model = glm::translate(model, glm::vec3(0.0f, 0.6f, 0.0f));
         myShader.set4Mat("model", model);
 
-        float lineColor[] = {0.8f, 0.8f, 0.3f};	// 边框线色值
-		if (lightStyle == SOFT_EDGES) {	// 绘制面（柔边透射）
-            colorFlagValue = COLOR_TETRAHEDRON;
-            myShader.set1Int("colorFlag", colorFlagValue);
-			glBindVertexArray(VAO1);
-			glDrawElements(GL_TRIANGLES, 12, GL_UNSIGNED_INT, 0);
-			// 绘制线框	
-			colorFlagValue = COLOR_LINE;
-			myShader.set1Int("colorFlag", colorFlagValue);
-			myShader.set3Floatv("lineColor", lineColor);
-			glBindVertexArray(VAO2);
-			glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-			glDrawElements(GL_TRIANGLES, 12, GL_UNSIGNED_INT, 0);
-			glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-		}
-		if (lightStyle == HARD_EDGES) {	// 绘制面（硬边非透）
-            colorFlagValue = COLOR_TETRAHEDRON;
-            myShader.set1Int("colorFlag", colorFlagValue);
-			glBindVertexArray(VAOe);
-			glDrawArrays(GL_TRIANGLES, 0, 36);
-			// 绘制线框	
-			colorFlagValue = COLOR_LINE;
-			myShader.set1Int("colorFlag", colorFlagValue);
-			myShader.set3Floatv("lineColor", lineColor);
-			glBindVertexArray(VAO2);
-			glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-			glDrawElements(GL_TRIANGLES, 12, GL_UNSIGNED_INT, 0);
-			glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-		}
+		// 绘制面
+		colorFlagValue = COLOR_TETRAHEDRON;
+		myShader.set1Int("colorFlag", colorFlagValue);
+		glBindVertexArray(VAO);
+		glDrawArrays(GL_TRIANGLES, 0, 36);
 		glUseProgram(0);	// 解除着色器激活
 		
 		lightShader.use();	// 光源着色器启用
@@ -325,15 +271,10 @@ int main() {
         glfwPollEvents();
     }
     // 释放缓冲与着色器
-	glDeleteVertexArrays(1, &VAO1);
-	glDeleteVertexArrays(1, &VAO2);
-	glDeleteVertexArrays(1, &VAOe);
+	glDeleteVertexArrays(1, &VAO);
 	glDeleteVertexArrays(1, &VAOLight);
-    glDeleteBuffers(1, &EBO1);
-    glDeleteBuffers(1, &EBO2);
     glDeleteBuffers(1, &EBOLight);
     glDeleteBuffers(1, &VBO);
-    glDeleteBuffers(1, &VBOe);
     glDeleteBuffers(1, &VBOLight);
     glDeleteProgram(myShader.ID);
     glDeleteProgram(lightShader.ID);
@@ -398,21 +339,6 @@ void processInput(GLFWwindow *window) {
         }    
     }
 	lastRState = currentRState;
-	
-    static bool lastLState = false;
-    bool currentLState = glfwGetKey(window, GLFW_KEY_L) == GLFW_PRESS;
-    if (currentLState && !lastLState) {
-        if (glfwGetKey(window, GLFW_KEY_L) == GLFW_PRESS) { // 按 L 变更光源模式
-            if (lightStyle == HARD_EDGES) {
-				lightStyle = SOFT_EDGES;
-			}
-			else if (lightStyle == SOFT_EDGES) {
-				lightStyle = HARD_EDGES;
-			}
-            std::cout << "The lighting mode had been changed." << std::endl;
-        }    
-    }
-	lastLState = currentLState;
 
     static bool lastFState = false;
     bool currentFState = glfwGetKey(window, GLFW_KEY_F) == GLFW_PRESS;
@@ -437,55 +363,14 @@ void processInput(GLFWwindow *window) {
     }    
 }    
 
-std::vector<float> GetVerticesNormal(const float* vertices, size_t vertices_length, const unsigned int* indices, size_t indices_length) {
-    size_t vertexCount = vertices_length / 3;	// 顶点数量
-    std::vector<glm::vec3> vertexNormals(vertexCount, glm::vec3(0.0f));	// 各顶点法线容器
-
-    for (size_t i = 0; i < indices_length; i += 3) {	// 逐一计算各面法线向量
-        unsigned int i1 = indices[i];
-        unsigned int i2 = indices[i+1];
-        unsigned int i3 = indices[i+2];
-
-        glm::vec3 a(vertices[i1*3], vertices[i1*3+1], vertices[i1*3+2]);
-        glm::vec3 b(vertices[i2*3], vertices[i2*3+1], vertices[i2*3+2]);
-        glm::vec3 c(vertices[i3*3], vertices[i3*3+1], vertices[i3*3+2]);
-
-        glm::vec3 normal = glm::cross(b - a, c - a);
-        float len = glm::length(normal);
-        if (len > 0.0f) normal /= len;	// 归一化面法线，消除三角形面积差异
-        vertexNormals[i1] += normal;
-        vertexNormals[i2] += normal;
-        vertexNormals[i3] += normal;	// 累加面法线
-    }
-
-    for (auto& n : vertexNormals) {
-        if (glm::length(n) > 0.0f)
-            n = glm::normalize(n);	// 归一化各顶点法线向量
-    }
-
-    std::vector<float> result;
-    result.reserve(vertexCount * 6);  // 三顶点坐标 + 三法线向量坐标
-    for (size_t v = 0; v < vertexCount; v++) {
-        // 顶点
-        result.push_back(vertices[v*3]);
-        result.push_back(vertices[v*3+1]);
-        result.push_back(vertices[v*3+2]);
-        // 法线
-        result.push_back(vertexNormals[v].x);
-        result.push_back(vertexNormals[v].y);
-        result.push_back(vertexNormals[v].z);
-    }
-    return result;
-}
-
 std::vector<float> GetVerticesNormal(const float* vertices, size_t vertices_length) {
-	size_t vertexCount = vertices_length / 3;	// 顶点数量
+	size_t vertexCount = vertices_length / 5;	// 顶点数量（包括纹理坐标）
     std::vector<glm::vec3> vertexNormals(vertexCount, glm::vec3(0.0f));	// 各顶点法线容器
 	
-    for (size_t i = 0; i < vertices_length; i += 9) {	// 计算各顶点法线向量
+    for (size_t i = 0; i < vertices_length; i += 15) {	// 计算各顶点法线向量
 		unsigned int i1 = i;
-		unsigned int i2 = i+3;
-		unsigned int i3 = i+6;
+		unsigned int i2 = i+5;
+		unsigned int i3 = i+10;
         glm::vec3 a(vertices[i1], vertices[i1+1], vertices[i1+2]);
         glm::vec3 b(vertices[i2], vertices[i2+1], vertices[i2+2]);
         glm::vec3 c(vertices[i3], vertices[i3+1], vertices[i3+2]);
@@ -494,19 +379,21 @@ std::vector<float> GetVerticesNormal(const float* vertices, size_t vertices_leng
         float len = glm::length(normal);
         if (len > 0.0f) normal /= len;	// 归一化
 
-        vertexNormals[i/3] += normal;
-        vertexNormals[i/3+1] += normal;
-        vertexNormals[i/3+2] += normal;	// 三顶点共用当前面法向量，各顶点均有数个法向量代表其在数个不同面中的值
+        vertexNormals[i/5] += normal;
+        vertexNormals[i/5+1] += normal;
+        vertexNormals[i/5+2] += normal;	// 三顶点当前面法向量
     }
 
 	std::vector<float> result;
-    result.reserve(vertexCount * 6);
+    result.reserve(vertexCount * 8);
     for (size_t v = 0; v < vertexCount; v++) {
-        // 顶点
-        result.push_back(vertices[v*3]);
-        result.push_back(vertices[v*3+1]);
-        result.push_back(vertices[v*3+2]);
-        // 法线
+        // 坐标（包括顶点与纹理）
+        result.push_back(vertices[v*5]);
+        result.push_back(vertices[v*5+1]);
+        result.push_back(vertices[v*5+2]);
+        result.push_back(vertices[v*5+3]);
+        result.push_back(vertices[v*5+4]);
+        // 法线向量
         result.push_back(vertexNormals[v].x);
         result.push_back(vertexNormals[v].y);
         result.push_back(vertexNormals[v].z);
