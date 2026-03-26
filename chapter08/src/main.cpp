@@ -24,6 +24,7 @@ enum Light_Style {
 	HARD_EDGES			= 4		// 硬边
 };
 static int lightStyle = HARD_EDGES;	// 默认硬边
+bool Camera::m_fly = false;			// 默认不可飞行
 
 int screenWidth = 800;
 int screenHeight = 800;	// 设置显示宽高
@@ -241,19 +242,25 @@ int main() {
 		}
 
 		myShader.use();		// 物体着色器启用
+		myShader.setVec3("viewPos", myCamera.m_position);  // 传入摄像机坐标
 		// 光照渲染
+		// 使用结构体名为前缀传入结构体各成员数据
 		float time = glfwGetTime();
-		glm::vec3 lightPos(3.0f * sinf(time), 1.0f, 3.0f * cosf(time));	// 光源位置
-		float lightColor[] = {1.0f, 1.0f, 1.0f};	// 光源色值
-		float ambientStrength;
-		if (lightStyle == HARD_EDGES) {ambientStrength = 0.3f;}
-		if (lightStyle == SOFT_EDGES) {ambientStrength = 0.5f;}	// 环境光照强度
-		myShader.set3Floatv("lightColor", lightColor);
-		myShader.set1Float("ambientStrength", ambientStrength);
-		myShader.setVec3("lightPos", lightPos);	// 传入光源坐标
-        myShader.setVec3("viewPos", myCamera.m_position);  // 传入摄像机坐标
-        float specularStrength = 0.4f;   // 镜面反射强度
-        myShader.set1Float("specularStrength", specularStrength);
+		glm::vec3 lightPos(3.0f * sinf(time), 1.0f, 3.0f * cosf(time));	// 设置光源位置
+		myShader.setVec3("light.position", lightPos);
+		glm::vec3 lightColor(1.0f, 1.0f, 1.0f);	// 设置光源颜色
+		myShader.setVec3("light.diffuse", glm::vec3(0.6f) * lightColor);	// 传入漫反射光强分量
+		myShader.setVec3("light.specular", lightColor);			// 传入环境光强分量
+		if (lightStyle == HARD_EDGES) {	// 硬边硬光源
+			myShader.setVec3("light.ambient", glm::vec3(0.2f) * lightColor);	// 传入环境光强分量
+		}
+		if (lightStyle == SOFT_EDGES) {	// 软边软光源
+			myShader.setVec3("light.ambient", glm::vec3(0.3f) * lightColor);
+		}
+		myShader.setVec3("material.diffuse", glm::vec3(1.0f, 1.0f, 0.0f));	// 漫反射光颜色（固有色）
+		myShader.setVec3("material.ambient", glm::vec3(0.8f, 0.8f, 0.4f));	// 环境光颜色
+		myShader.setVec3("material.specular", glm::vec3(0.5f, 0.5f, 0.5f));	// 传入镜面反射光颜色
+		myShader.set1Float("material.shininess", 32.0f);	// 传入镜面高光散射度
 		
         // 设置 LookAt 矩阵
         myShader.set4Mat("view", myCamera.GetViewMatrix());
@@ -267,9 +274,7 @@ int main() {
 		model = glm::translate(model, glm::vec3(0.0f, 0.6f, 0.0f));
         myShader.set4Mat("model", model);
 
-		float objectColor[] = {1.0f, 1.0f, 0.0f};
-        float lineColor[] = {0.8f, 0.8f, 0.3f};
-		myShader.set3Floatv("objectColor", objectColor);
+        float lineColor[] = {0.8f, 0.8f, 0.3f};	// 边框线色值
 		if (lightStyle == SOFT_EDGES) {	// 绘制面（柔边透射）
             colorFlagValue = COLOR_TETRAHEDRON;
             myShader.set1Int("colorFlag", colorFlagValue);
@@ -311,7 +316,7 @@ int main() {
 		
 		// 绘制光源
         colorFlagValue = COLOR_LIGHT;
-		lightShader.set3Floatv("lightColor", lightColor);
+		lightShader.setVec3("lightColor", lightColor);
         glBindVertexArray(VAOLight);
         glDrawElements(GL_TRIANGLES, 24, GL_UNSIGNED_INT, 0);
 		glUseProgram(0);	// 解除着色器激活
@@ -408,6 +413,21 @@ void processInput(GLFWwindow *window) {
         }    
     }
 	lastLState = currentLState;
+
+    static bool lastFState = false;
+    bool currentFState = glfwGetKey(window, GLFW_KEY_F) == GLFW_PRESS;
+    if (currentFState && !lastFState) {
+        if (glfwGetKey(window, GLFW_KEY_F) == GLFW_PRESS) { // 按 F 变更移动模式
+            if (Camera::m_fly) {
+				Camera::m_fly = false;
+			}
+			else {
+				Camera::m_fly = true;
+			}
+            std::cout << "The moving mode had been changed." << std::endl;
+        }    
+    }
+	lastFState = currentFState;
 
     myCamera.ProcessKeyboard(direction, deltaTime);
 

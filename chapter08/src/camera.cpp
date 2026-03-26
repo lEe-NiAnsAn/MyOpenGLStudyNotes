@@ -1,8 +1,8 @@
 #include "camera.h"
 
-// 初始化列表：摄像机所摄方向，摄像机移动速度，鼠标灵敏度，fov值
+// 初始化列表：摄像机所摄方向，摄像机移动速度，鼠标灵敏度，fov值，摄像机高度
 Camera::Camera(glm::vec3 position, glm::vec3 up, float yaw, float pitch) 
-: m_front(glm::vec3(0.0f, 0.0f, -1.0f)), m_movementSpeed(SPEED), m_mouseSensitivity(SENSITIVITY), m_zoom(ZOOM) {
+: m_front(glm::vec3(0.0f, 0.0f, -1.0f)), m_movementSpeed(SPEED), m_mouseSensitivity(SENSITIVITY), m_zoom(ZOOM), m_posY(HEIGHT){
     m_position = position;
     m_worldUp = up;
     m_yaw = yaw;
@@ -10,7 +10,7 @@ Camera::Camera(glm::vec3 position, glm::vec3 up, float yaw, float pitch)
     updateCameraVectors();
 }
 Camera::Camera(float posX, float posY, float posZ, float upX, float upY, float upZ, float yaw, float pitch) 
-: m_front(glm::vec3(0.0f, 0.0f, -1.0f)), m_movementSpeed(SPEED), m_mouseSensitivity(SENSITIVITY), m_zoom(ZOOM) {
+: m_front(glm::vec3(0.0f, 0.0f, -1.0f)), m_movementSpeed(SPEED), m_mouseSensitivity(SENSITIVITY), m_zoom(ZOOM), m_posY(HEIGHT){
     m_position = glm::vec3(posX, posY, posZ);
     m_worldUp = glm::vec3(upX, upY, upZ);
     m_yaw = yaw;
@@ -26,9 +26,10 @@ glm::mat4 Camera::GetViewMatrix() {
 
 void Camera::ProcessKeyboard(Camera_Movement direction, float deltaTime) {
 	float velocity = m_movementSpeed * deltaTime;
+	if (!m_fly) {m_posY = m_position.y;}
 	switch(direction) {
-		case Camera_Movement::NOTMOVE:
-			{m_position.y = 1.0f;}
+		case Camera_Movement::NOTMOVE: 
+		{if (!m_fly) {m_position.y = m_posY;}}
 		return;
 		case Camera_Movement::FORWARD:
 			{m_position += m_front * velocity;}
@@ -48,7 +49,9 @@ void Camera::ProcessKeyboard(Camera_Movement direction, float deltaTime) {
 		default:
 		break;
 	}
-	m_position.y = 1.0f;	// 飞行禁止
+	if (!m_fly) {
+		m_position.y = m_posY;	// 禁止飞行
+	}
 }
 
 void Camera::ProcessMouseMovement(float cursorX, float cursorY, GLboolean constrainPitch) {

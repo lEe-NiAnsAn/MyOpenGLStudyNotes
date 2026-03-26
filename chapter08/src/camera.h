@@ -10,6 +10,7 @@ const float PITCH       =  0.0f;    // 默认俯仰角
 const float SPEED       =  2.0f;    // 默认速度
 const float SENSITIVITY =  0.02f;   // 默认灵敏度
 const float ZOOM        =  45.0f;   // 默认FOV缩放大小
+const float HEIGHT		=  1.0f;	// 默认摄像机高度
 
 class Camera {
 public:
@@ -32,8 +33,10 @@ public:
 	float m_zoom;					// FOV缩放大小
     float m_movementSpeed;			// 摄像机移动速度
     float m_mouseSensitivity;		// 鼠标灵敏度
-
+	float m_posY;					// 记录当前摄像机y坐标
+	
 	static bool firstMouse;
+	static bool m_fly;				// 是否飞行标志
 	static float m_cursorX;			// 鼠标指针x坐标
 	static float m_cursorY;			// 鼠标指针y坐标
 
