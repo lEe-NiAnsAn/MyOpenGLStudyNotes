@@ -87,30 +87,56 @@ int main() {
 	// 编译、创建着色器
 	Shader myShader("src/shaders/shader.vert","src/shaders/shader.frag");
 	Shader lightShader("src/shaders/lightShader.vert","src/shaders/lightShader.frag");
+	myShader.use();
 
-    // 创建纹理
+    // 创建漫反射与环境光纹理
     unsigned int diffuseMap;
     glGenTextures(1, &diffuseMap);
     glBindTexture(GL_TEXTURE_2D, diffuseMap);	// 绑定纹理
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);	// S 轴方向默认重复纹理
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);	// T 轴方向默认重复纹理
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINE);	// 线性过滤缩小
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINE);	// 线性过滤放大
-    // 载入图像
-    int width, height, nrChannels;
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);	// 线性过滤缩小
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);	// 线性过滤放大
+    // 载入图像1
+    int width1, height1, nrChannels1;
     stbi_set_flip_vertically_on_load(true); // 翻转y轴
-    unsigned char *data = stbi_load("src/textures/laughlikes.png", &width, &height, &nrChannels, 0);
+    unsigned char *data = stbi_load("src/textures/warning_diffuse.png", &width1, &height1, &nrChannels1, 0);
     if(data) {
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);	// 附着纹理
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width1, height1, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);	// 附着纹理
         glGenerateMipmap(GL_TEXTURE_2D);	// 生成多级渐远纹理
     }
     else {
         std::cout << "Loading texture error!" << std::endl;
     }
-    stbi_image_free(data);						// 释放图像内存
-    glActiveTexture(GL_TEXTURE0);				// 激活纹理0
-    glBindTexture(GL_TEXTURE_2D, diffuseMap);	// 绑定该纹理
-	myShader.set1Int("material.diffuse", 0);	// 传入纹理0
+	stbi_image_free(data);						// 释放图像1内存
+	// 创建镜面反射光纹理
+    unsigned int specularMap;
+    glGenTextures(1, &specularMap);
+    glBindTexture(GL_TEXTURE_2D, specularMap);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    // 载入图像2
+    int width2, height2, nrChannels2;
+    stbi_set_flip_vertically_on_load(true);
+    data = stbi_load("src/textures/warning_specular.png", &width2, &height2, &nrChannels2, 0);
+    if(data) {
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width2, height2, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+        glGenerateMipmap(GL_TEXTURE_2D);	// 生成多级渐远纹理
+    }
+    else {
+        std::cout << "Loading texture error!" << std::endl;
+    }
+    stbi_image_free(data);						// 释放图像2内存
+
+	glActiveTexture(GL_TEXTURE0);				// 激活纹理1
+	glBindTexture(GL_TEXTURE_2D, diffuseMap);	// 绑定纹理1
+    glActiveTexture(GL_TEXTURE1);				// 激活纹理2
+    glBindTexture(GL_TEXTURE_2D, specularMap);	// 绑定纹理2
+	// 绑定全部纹理后传入
+	myShader.set1Int("material.diffuse", 0);
+	myShader.set1Int("material.specular", 1);
 	
     // 元素缓冲对象
 	float R = 0.8f;
@@ -120,10 +146,10 @@ int main() {
 	float h = H - R;
 	float t01 = 0.5f;
 	float t02 = 1.0f;
-	float t11 = 0.5f - sqrtf(3.0f) / 4.0f;
-	float t12 = 0.25f;
-	float t21 = 0.5f + sqrtf(3.0f) / 4.0f;
-	float t22 = 0.25f;
+	float t11 = 0.0f;
+	float t12 = 0.0f;
+	float t21 = 1.0f;
+	float t22 = 0.0f;
     float vertices[] = {
 	//		------ 顶点坐标 ------					  ------ 纹理坐标 ------
 		0.0f,		 R,		 0.0f,					  		t01, t02,     	// 锥顶P0
@@ -218,7 +244,8 @@ int main() {
 			std::cout << std::fixed << std::setprecision(1) << lastFps << " fps" << std::endl;
 		}
 
-		myShader.use();		// 物体着色器启用
+		myShader.use();
+
 		myShader.setVec3("viewPos", myCamera.m_position);  // 传入摄像机坐标
 		// 光照渲染
 		// 使用结构体名为前缀传入结构体各成员数据
@@ -229,7 +256,6 @@ int main() {
 		myShader.setVec3("light.diffuse", glm::vec3(0.6f) * lightColor);	// 传入漫反射光强分量
 		myShader.setVec3("light.specular", lightColor);						// 传入镜面反射光强分量
 		myShader.setVec3("light.ambient", glm::vec3(0.2f) * lightColor);	// 传入环境光强分量
-		myShader.setVec3("material.specular", glm::vec3(0.5f, 0.5f, 0.5f));	// 传入镜面反射光颜色
 		myShader.set1Float("material.shininess", 32.0f);					// 传入镜面高光散射度
 		
         // 设置 LookAt 矩阵
