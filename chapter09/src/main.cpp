@@ -129,14 +129,37 @@ int main() {
         std::cout << "Loading texture error!" << std::endl;
     }
     stbi_image_free(data);						// 释放图像2内存
+	// 创建放射光纹理
+    unsigned int emissionMap;
+    glGenTextures(1, &emissionMap);
+    glBindTexture(GL_TEXTURE_2D, emissionMap);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    // 载入图像3
+    int width3, height3, nrChannels3;
+    stbi_set_flip_vertically_on_load(true);
+    data = stbi_load("src/textures/warning_emission.png", &width3, &height3, &nrChannels3, 0);
+    if(data) {
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width3, height3, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+        glGenerateMipmap(GL_TEXTURE_2D);	// 生成多级渐远纹理
+    }
+    else {
+        std::cout << "Loading texture error!" << std::endl;
+    }
+    stbi_image_free(data);						// 释放图像3内存
 
 	glActiveTexture(GL_TEXTURE0);				// 激活纹理1
 	glBindTexture(GL_TEXTURE_2D, diffuseMap);	// 绑定纹理1
     glActiveTexture(GL_TEXTURE1);				// 激活纹理2
     glBindTexture(GL_TEXTURE_2D, specularMap);	// 绑定纹理2
+    glActiveTexture(GL_TEXTURE2);				// 激活纹理3
+    glBindTexture(GL_TEXTURE_2D, emissionMap);	// 绑定纹理3
 	// 绑定全部纹理后传入
 	myShader.set1Int("material.diffuse", 0);
 	myShader.set1Int("material.specular", 1);
+	myShader.set1Int("material.emission", 2);
 	
     // 元素缓冲对象
 	float R = 0.8f;
