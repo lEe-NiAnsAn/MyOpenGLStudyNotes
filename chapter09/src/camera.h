@@ -19,6 +19,8 @@ public:
 		BACKWARD,   // S
 		LEFT,       // A
 		RIGHT,      // D
+		UP,      	// ↑
+		DOWN,      	// ↓
 		NOTMOVE,	// 不移动
 		REZOOM		// 恢复fov
 	};

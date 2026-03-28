@@ -402,7 +402,7 @@ void scroll_callback(GLFWwindow* window, double xoffsetIn, double yoffsetIn) {
 }
 
 void processInput(GLFWwindow *window) {
-    // 按下 WASD 改变摄像机位置
+    // 按下 WASD ↑↓ 改变摄像机位置
     float currentFrame = glfwGetTime();
     deltaTime = currentFrame - lastFrame;
     lastFrame = currentFrame;
@@ -418,6 +418,12 @@ void processInput(GLFWwindow *window) {
     }    
     if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
         direction = Camera::Camera_Movement::RIGHT;
+    }
+    if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {
+        direction = Camera::Camera_Movement::UP;
+    }
+    if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) {
+        direction = Camera::Camera_Movement::DOWN;
     }
 
     static bool lastRState = false;

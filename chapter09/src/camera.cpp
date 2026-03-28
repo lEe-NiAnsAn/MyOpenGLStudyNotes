@@ -43,6 +43,12 @@ void Camera::ProcessKeyboard(Camera_Movement direction, float deltaTime) {
 		case Camera_Movement::RIGHT:
 			{m_position += m_right * velocity;}
 		break;
+		case Camera_Movement::UP:
+			{m_position.y += velocity;}
+		break;
+		case Camera_Movement::DOWN:
+			{m_position.y -= velocity;}
+		break;
 		case Camera_Movement::REZOOM:
 			{m_zoom = ZOOM;}
 		break;
