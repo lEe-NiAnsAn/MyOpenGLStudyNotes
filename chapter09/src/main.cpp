@@ -21,8 +21,15 @@ enum Color_Flag {
 	COLOR_TETRAHEDRON	= 1,	// 四面体颜色
 	COLOR_LINE 			= 2 	// 框线颜色
 };
+enum Light_Flag {
+	POINT_LIGHT     	= 3,	// 点光源
+	PARALLELT_LIGHT		= 4, 	// 平行光源
+	SPOT_LIGHT        	= 5, 	// 聚光源
+};
 int colorFlagValue;
-bool Camera::m_fly = false;			// 默认不可飞行
+int lightFlagValue;
+bool Camera::m_fly = false;			    // 默认不可飞行
+static int lightMode = POINT_LIGHT;		// 默认点光源
 
 int screenWidth = 800;
 int screenHeight = 800;	// 设置显示宽高
@@ -266,21 +273,52 @@ int main() {
 			lastFps = currentFps;
 			std::cout << std::fixed << std::setprecision(1) << lastFps << " fps" << std::endl;
 		}
-
+        
 		myShader.use();
-
-		myShader.setVec3("viewPos", myCamera.m_position);  // 传入摄像机坐标
-		// 光照渲染
-		// 使用结构体名为前缀传入结构体各成员数据
-		float time = glfwGetTime();
-		glm::vec3 lightPos(3.0f * sinf(time), 1.0f, 3.0f * cosf(time));	// 设置光源位置
-		myShader.setVec3("light.position", lightPos);
-		glm::vec3 lightColor(1.0f, 1.0f, 1.0f);	// 设置光源颜色
-		myShader.setVec3("light.diffuse", glm::vec3(0.6f) * lightColor);	// 传入漫反射光强分量
-		myShader.setVec3("light.specular", lightColor);						// 传入镜面反射光强分量
-		myShader.setVec3("light.ambient", glm::vec3(0.2f) * lightColor);	// 传入环境光强分量
-		myShader.set1Float("material.shininess", 32.0f);					// 传入镜面高光散射度
-		
+        // 光照渲染
+        myShader.setVec3("viewPos", myCamera.m_position);  // 传入摄像机坐标
+        glm::vec3 lightColor(1.0f, 1.0f, 1.0f);	// 设置光源颜色
+        glm::vec3 lightPos;
+        glm::vec3 direction;
+		float linear, quadratic; 	// 光照衰减函数一次项、二次项
+        if (lightMode == POINT_LIGHT) {	// 点光源
+            float time = glfwGetTime();
+            float a = 0.9f;  // x 轴半轴长
+            float b = 2.0f;  // z 轴半轴长
+            lightPos = glm::vec3(a * cosf(1.3f * time), 1.0f, b * sinf(1.3f * time) - 1.0f);	// 设置光源位置（中心为(0,-1)的椭圆）
+            myShader.setVec3("light.position", lightPos);                       // 传入光源位置
+			linear = 0.22f;
+			quadratic = 0.2f;
+        }
+        if (lightMode == PARALLELT_LIGHT) {	// 平行光源
+            direction = glm::vec3(0.0f, -0.8f, 1.0f);   // 设置光照方向
+            lightPos = glm::vec3(10.1f, 3.0f, -10.5f);	// 设置光源位置
+            myShader.setVec3("light.direction", direction);
+            myShader.setVec3("light.position", lightPos);	// 传入光源位置
+			linear = 0.014f;
+			quadratic = 0.0007f;
+        }
+        if (lightMode == SPOT_LIGHT) {	// 聚光源
+            direction =myCamera.m_front;   // 设置光照方向同摄像机所摄方向
+            lightPos = myCamera.m_position;	// 设置光源位置同摄像机位置
+            myShader.setVec3("light.direction", direction);
+            myShader.setVec3("light.position", lightPos);	// 传入光源位置
+			myShader.set1Float("light.innerCutOff", cosf(glm::radians(11.0f)));	// 传入聚光内切光角余弦值
+			myShader.set1Float("light.outerCutOff", cosf(glm::radians(13.0f)));	// 传入聚光外切光角余弦值
+			linear = 0.045f;
+			quadratic = 0.075f;
+        }
+        myShader.set1Int("lightMode", lightMode);
+        // 使用结构体名为前缀传入结构体各成员数据
+        myShader.setVec3("light.diffuse", glm::vec3(0.8f) * lightColor);	// 传入漫反射光强分量
+        myShader.setVec3("light.specular", lightColor);						// 传入镜面反射光强分量
+        myShader.setVec3("light.ambient", glm::vec3(0.2f) * lightColor);	// 传入环境光强分量
+        myShader.set1Float("material.shininess", 32.0f);					// 传入镜面高光散射度
+        // 设置光照衰减参数
+        myShader.set1Float("light.constant", 1.0f);
+        myShader.set1Float("light.linear", linear);
+        myShader.set1Float("light.quadratic", quadratic);
+        
         // 设置 LookAt 矩阵
         myShader.set4Mat("view", myCamera.GetViewMatrix());
 		// 设置投影矩阵
@@ -292,29 +330,32 @@ int main() {
         glm::mat4 model = glm::mat4(1.0f);
 		model = glm::translate(model, glm::vec3(0.0f, 0.6f, 0.0f));
         myShader.set4Mat("model", model);
-
+        
 		// 绘制面
 		colorFlagValue = COLOR_TETRAHEDRON;
 		myShader.set1Int("colorFlag", colorFlagValue);
+		lightFlagValue = COLOR_TETRAHEDRON;
+		myShader.set1Int("lightFlag", lightFlagValue);
 		glBindVertexArray(VAO);
 		glDrawArrays(GL_TRIANGLES, 0, 36);
 		glUseProgram(0);	// 解除着色器激活
-		
-		lightShader.use();	// 光源着色器启用
-        lightShader.set4Mat("view", myCamera.GetViewMatrix());
-		lightShader.set4Mat("projection", projection);
-		// 设置光源模型矩阵
-        model = glm::mat4(1.0f);
-		model = glm::translate(model, lightPos);
-		model = glm::scale(model, glm::vec3(0.05f));	// 缩小光源
-        lightShader.set4Mat("model", model);
-		
-		// 绘制光源
-        colorFlagValue = COLOR_LIGHT;
-		lightShader.setVec3("lightColor", lightColor);
-        glBindVertexArray(VAOLight);
-        glDrawElements(GL_TRIANGLES, 24, GL_UNSIGNED_INT, 0);
-		glUseProgram(0);	// 解除着色器激活
+
+        if (lightMode == POINT_LIGHT) {
+            lightShader.use();	// 光源着色器启用
+            lightShader.set4Mat("view", myCamera.GetViewMatrix());
+            lightShader.set4Mat("projection", projection);
+            // 设置光源模型矩阵
+            model = glm::mat4(1.0f);
+            model = glm::translate(model, lightPos);
+            model = glm::scale(model, glm::vec3(0.05f));	// 缩小光源
+            lightShader.set4Mat("model", model);
+            // 绘制光源
+            colorFlagValue = COLOR_LIGHT;
+            lightShader.setVec3("lightColor", lightColor);
+            glBindVertexArray(VAOLight);
+            glDrawElements(GL_TRIANGLES, 24, GL_UNSIGNED_INT, 0);
+            glUseProgram(0);	// 解除着色器激活
+        }
 
         glfwSwapBuffers(window);
         glfwPollEvents();
@@ -403,6 +444,24 @@ void processInput(GLFWwindow *window) {
         }    
     }
 	lastFState = currentFState;
+
+    static bool lastLState = false;
+    bool currentLState = glfwGetKey(window, GLFW_KEY_L) == GLFW_PRESS;
+    if (currentLState && !lastLState) {
+        if (glfwGetKey(window, GLFW_KEY_L) == GLFW_PRESS) { // 按 L 变更光源类型
+            if (lightMode == POINT_LIGHT) {
+                lightMode = PARALLELT_LIGHT;
+            }
+            else if (lightMode == PARALLELT_LIGHT) {
+                lightMode = SPOT_LIGHT;
+            }
+            else if (lightMode == SPOT_LIGHT) {
+                lightMode = POINT_LIGHT;
+            }
+            std::cout << "The lighting mode had been changed." << std::endl;
+        }   
+    }
+	lastLState = currentLState;
 
     myCamera.ProcessKeyboard(direction, deltaTime);
 
