@@ -15,7 +15,9 @@ void Model::Draw(Shader shader, const glm::vec3& viewPos) {
             sortedMap.emplace(distansce, &mesh);         // 自动按降序插入合适位置
         }  
         for (auto& [dist, meshPtr] : sortedMap) {   // 其次遍历绘制含有透明度物体
+            glDisable(GL_CULL_FACE);    // 绘制平面时关闭面剔除
             meshPtr->Draw(shader);
+            glEnable(GL_CULL_FACE);		// 恢复面剔除
         }
     }
 }

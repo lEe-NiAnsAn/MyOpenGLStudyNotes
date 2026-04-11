@@ -76,6 +76,13 @@ int main() {
                                                                                 // 后将目标alpha通道因子设置为0，目标alpha值不对最终的alpha值产生影响。
     // 默认混合运算函数（设置运算符，默认相加）
     // glBlendEquation(GL_FUNC_ADD);
+
+    // 开启面剔除：节省算力资源
+    glEnable(GL_CULL_FACE);
+	// 定义逆时针为正面（默认）（Blender 默认顶点顺序亦为逆时针）
+    glFrontFace(GL_CCW);
+	// 剔除背面（默认）
+    glCullFace(GL_BACK);
     
     Shader myShader("src/shaders/shader.vert", "src/shaders/shader.frag");  // 使用着色器类进行着色器导入
     myShader.use();
