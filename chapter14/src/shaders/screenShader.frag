@@ -45,7 +45,7 @@ void main() {
 	float emboss[9] = float[](	// 浮雕效果卷积核
         -2.0, -1.0, 0.0,
     	-1.0,  1.0, 1.0,
-         0.0,   1.0, 2.0
+         0.0,  1.0, 2.0
     );
 
     switch (postPrecessMode) {
