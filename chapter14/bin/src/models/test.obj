@@ -1,6 +1,6 @@
-# Blender 3.6.12
+﻿# Blender 3.6.12
 # www.blender.org
-mtllib Rumia.mtl
+mtllib test.mtl
 o 平面
 v -1.000000 -1.000000 -0.000000
 v 1.000000 -1.000000 -0.000000

@@ -23,6 +23,7 @@ public:
 		NOTMOVE,	// 不移动
 		REZOOM		// 恢复fov
 	};
+	
 
 	glm::vec3 m_position; 			// 摄像机全局坐标
 	glm::vec3 m_front;    			// 摄像机所摄方向（负z轴方向）
@@ -36,6 +37,7 @@ public:
     float m_mouseSensitivity;		// 鼠标灵敏度
 	
 	static bool firstMouse;
+	static int m_processFlag;		// 后期处理标志
 	static bool IsMouseCaptured;	// 是否捕捉鼠标指针
 	static float m_cursorX;			// 鼠标指针x坐标
 	static float m_cursorY;			// 鼠标指针y坐标

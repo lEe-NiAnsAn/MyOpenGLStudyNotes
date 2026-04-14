@@ -1,6 +1,6 @@
 #include "camera.h"
 
-// 初始化列表：摄像机所摄方向，摄像机移动速度，鼠标灵敏度，fov值，摄像机高度
+// 初始化列表：摄像机所摄方向，摄像机移动速度，鼠标灵敏度，fov值，后期处理标志
 Camera::Camera(glm::vec3 position, glm::vec3 up, float yaw, float pitch) 
 : m_front(glm::vec3(0.0f, 0.0f, -1.0f)), m_movementSpeed(SPEED), m_mouseSensitivity(SENSITIVITY), m_zoom(ZOOM) {
     m_position = position;

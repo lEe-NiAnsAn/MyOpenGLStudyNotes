@@ -33,10 +33,12 @@ float lastFrame = 0.0f; // 末帧时间
 auto myCamera = std::make_unique<Camera>(glm::vec3(0.0f, 0.3f, 3.0f));  
 int screenWidth = 1000;
 int screenHeight = 800;	// 设置显示宽高
+glm::vec2 offset = glm::vec2(1.0f / screenWidth, 1.0f / screenHeight);  // 创建卷积核所需的偏移量（即单个像素在标准化坐标中的宽高）
 float Camera::m_cursorX = screenWidth / 2.0f;
 float Camera::m_cursorY = screenHeight / 2.0f;	// 鼠标指针位置窗口居中
 bool Camera::firstMouse = true;
 bool Camera::IsMouseCaptured = true;
+int Camera::m_processFlag = 0;
 
 int main() {
 	// 初始化 GLFW
@@ -96,7 +98,7 @@ int main() {
 
     auto myShader = std::make_unique<Shader>("src/shaders/shader.vert", "src/shaders/shader.frag");
     auto screenShader = std::make_unique<Shader>("src/shaders/screenShader.vert", "src/shaders/screenShader.frag");
-    auto myModel = std::make_unique<Model>("src/models/Rumia.obj");
+    auto myModel = std::make_unique<Model>("src/models/test.obj");
 	
     // 创建帧缓冲对象
     glGenFramebuffers(1, &myFBO.framebuffer);             	// 生成缓冲对象
@@ -168,6 +170,8 @@ int main() {
 		// 使用附件颜色纹理作为矩形纹理，显示上一步离屏渲染的内容
         screenShader->use();
 		screenShader->set1Int("screenTexture", 0);
+		screenShader->set1Int("postPrecessMode", myCamera->m_processFlag);  // 传入后期处理标志
+        screenShader->setVec2("offset", offset);    // 传入偏移量
         glBindVertexArray(quadVAO);
         glBindTexture(GL_TEXTURE_2D, myFBO.textureColorbuffer);	
         glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -205,6 +209,8 @@ void framebuffer_size_callback(GLFWwindow *window, int width, int height) { // �
     glBindRenderbuffer(GL_RENDERBUFFER, myFBO.rbo);
     glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, width, height);
 
+    // 更新卷积核偏移量
+    offset = glm::vec2(1.0f / width, 1.0f / height);
 }
 
 void mouse_callback(GLFWwindow* window, double xposIn, double yposIn) { // 传入窗口句柄与鼠标坐标（回调函数）
@@ -252,6 +258,23 @@ void processInput(GLFWwindow *window) { // 传入窗口句柄，实时监测按�
     }
 	lastRState = currentRState;
     myCamera->ProcessKeyboard(direction, delta);
+
+    // 按数字键恢复切换后期处理效果
+	static bool lastNumState = false;
+	bool currentNumState = false;
+	auto num = GLFW_KEY_0;
+	for (auto i = GLFW_KEY_0; i <= GLFW_KEY_9; i++) {
+		if (glfwGetKey(window, i) == GLFW_PRESS) {
+			currentNumState = true;
+			num = i - GLFW_KEY_0;
+			break;
+		}
+	}
+	if (currentNumState && !lastNumState && (num != Camera::m_processFlag)) {
+		Camera::m_processFlag = num;    // 数字键对应后期处理见片段着色器
+		std::cout << "The post-processing mode has been changed." << std::endl;
+	}
+	lastNumState = currentNumState;
 
 	// 按 ~ 切换鼠标捕获模式
     static bool lastGraveState = false;
