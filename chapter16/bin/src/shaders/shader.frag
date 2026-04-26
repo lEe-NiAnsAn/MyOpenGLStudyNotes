@@ -13,9 +13,12 @@ struct Light {
     float quadratic;	// 光照衰减公式二次项
 };
 
-in vec3 FragPos;
-in vec3 Color;
-in vec3 Normal;
+// 使用接口块接受着色器数据
+in VS_OUT {
+	vec3 FragPos;
+	vec3 Color;
+	vec3 Normal;
+} fs_in;
 
 uniform Light light;
 uniform vec2 screenSize;
@@ -23,21 +26,21 @@ uniform vec2 screenSize;
 out vec4 FragColor;
 
 void main() {
-	vec3 orientedNormal = Normal;
+	vec3 orientedNormal = fs_in.Normal;
 	if (!gl_FrontFacing) {			// 使用 gl_FrontFacing 检测是否面向正面，实现背面时反转法线
 		orientedNormal = -orientedNormal;   
 	}
 	vec3 norm = normalize(orientedNormal);	// 归一化
 
-	vec3 ambient = light.ambient * Color;	// 纹理环境光照
+	vec3 ambient = light.ambient * fs_in.Color;	// 纹理环境光照
 
-	vec3 lightDir = normalize(light.position - FragPos);	// 光线方向
+	vec3 lightDir = normalize(light.position - fs_in.FragPos);	// 光线方向
 	float diff = max(dot(norm, lightDir), 0.0);				// 漫反射系数
-	vec3 diffuse = light.diffuse * diff * Color;			// 纹理漫反射光照
+	vec3 diffuse = light.diffuse * diff * fs_in.Color;			// 纹理漫反射光照
 
 	vec3 reflectDir = reflect(-lightDir, norm);					// 反射方向
 	float spec = pow(max(dot(lightDir, reflectDir), 0.0), 16);	// 高光系数
-	vec3 specular = light.specular * spec * Color;				// 纹理镜面反射光照
+	vec3 specular = light.specular * spec * fs_in.Color;				// 纹理镜面反射光照
 
 	float theta = dot(lightDir, normalize(-light.direction));
 	float epsilon = light.innerCutOff - light.outerCutOff;
@@ -45,7 +48,7 @@ void main() {
 	diffuse  *= intensity;
 	specular  *= intensity;
 	
-	float distance = length(light.position - FragPos);	// 光源距离
+	float distance = length(light.position - fs_in.FragPos);	// 光源距离
 	float attenuation = 1.0 / (light.constant + light.linear * distance + light.quadratic * (distance * distance));	// 光照衰弱公式
 	diffuse  *= attenuation;
 	specular  *= attenuation;
