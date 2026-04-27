@@ -129,9 +129,9 @@ int main() {
 	glBindBuffer(GL_ARRAY_BUFFER, vbo2);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
 	// 写入方法二：获取 GPU 内缓冲对象指针映射至 CPU 进行只写录入（glMapBuffer 为整体映射）
-	void* ptr = glMapBufferRange(GL_ARRAY_BUFFER, 0, sizeof(vertPos), GL_MAP_WRITE_BIT);	//  顶点位置属性数据范围映射
-	if (ptr) {
-		float* data = (float*)ptr;	// 显式转换为目标数据类型数组以修改z值
+	void* ubo2_ptr = glMapBufferRange(GL_ARRAY_BUFFER, 0, sizeof(vertPos), GL_MAP_WRITE_BIT);	//  顶点位置属性数据范围映射
+	if (ubo2_ptr) {
+		float* data = (float*)ubo2_ptr;	// 显式转换为目标数据类型数组以修改z值
 		data[2]  = 1.0f;
 		data[5]  = 1.0f;
 		data[8]  = 1.0f;
@@ -147,48 +147,89 @@ int main() {
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
 
-	auto myShader = std::make_unique<Shader>("src/shaders/shader.vert", "src/shaders/shader.frag");
+	auto myShader1 = std::make_unique<Shader>("src/shaders/shader.vert", "src/shaders/shader.frag", "src/shaders/shader.geom");
+	auto myShader2 = std::make_unique<Shader>("src/shaders/shader.vert", "src/shaders/shader.frag");
+	auto normalShader = std::make_unique<Shader>("src/shaders/shader.vert", "src/shaders/shader.frag", "src/shaders/showNormal.geom");
 	// 设置 相应绑定点
-	unsigned int matrices_index = glGetUniformBlockIndex(myShader->ID, "Matrices");	// 获取着色器中 uniform 块索引
-	glUniformBlockBinding(myShader->ID, matrices_index, 0);	// 设置至0号标志绑定点（自定序号）
+	unsigned int matrices_index1 = glGetUniformBlockIndex(myShader1->ID, "Matrices");	// 获取着色器中 uniform 块索引
+	glUniformBlockBinding(myShader1->ID, matrices_index1, 0);	// 设置至0号标志绑定点（自定序号）
+	unsigned int matrices_index2 = glGetUniformBlockIndex(myShader2->ID, "Matrices");
+	glUniformBlockBinding(myShader2->ID, matrices_index2, 0);
+	unsigned int matrices_index3 = glGetUniformBlockIndex(normalShader->ID, "Matrices");
+	glUniformBlockBinding(normalShader->ID, matrices_index3, 0);
 	// 设置 uniform 数据缓冲对象
 	unsigned int UBO;
 	glGenBuffers(1, &UBO);
 	glBindBuffer(GL_UNIFORM_BUFFER, UBO);
 	glBufferData(GL_UNIFORM_BUFFER, 2 * sizeof(glm::mat4), NULL, GL_STATIC_DRAW); // 预分配内存：根据 UBO 的具体数据内容设置内存大小
-	glBindBuffer(GL_UNIFORM_BUFFER, 0);
 	// 绑定 UBO 至绑定点
 	glBindBufferRange(GL_UNIFORM_BUFFER, 0, UBO, 0, 2 * sizeof(glm::mat4));	// 区间绑定
-	// glBindBufferBase(GL_UNIFORM_BUFFER, 0, UBO);	// 全绑定
-	glBindBuffer(GL_UNIFORM_BUFFER, 0);	// 退出 UBO 状态机
-
+	glBindBuffer(GL_UNIFORM_BUFFER, 0);
+	
+	// 设置光源
+	unsigned int lights_index1 = glGetUniformBlockIndex(myShader1->ID, "Light");
+	glUniformBlockBinding(myShader1->ID, lights_index1, 1);
+	unsigned int lights_index2 = glGetUniformBlockIndex(myShader2->ID, "Light");
+	glUniformBlockBinding(myShader2->ID, lights_index2, 1);
+	unsigned int lights_index3 = glGetUniformBlockIndex(normalShader->ID, "Light");
+	glUniformBlockBinding(normalShader->ID, lights_index3, 1);
+	unsigned int uboLight;
+	glGenBuffers(1, &uboLight);
+	glBindBuffer(GL_UNIFORM_BUFFER, uboLight);
+	GLsizeiptr uboLightSize = 5 * sizeof(float) + 5 * (sizeof(glm::vec3) + 4) + 12;	// 计算各成员大小后对齐至16字节的倍数
+	glBufferData(GL_UNIFORM_BUFFER, uboLightSize, NULL, GL_STATIC_DRAW);	
+	glBindBufferBase(GL_UNIFORM_BUFFER, 1, uboLight);	// 全绑定
+	void* uboLight_ptr = glMapBufferRange(GL_UNIFORM_BUFFER, 0, uboLightSize, GL_MAP_WRITE_BIT);
+	if (uboLight_ptr) {
+		// 传入光源 float 类型参数
+		float* floatData = static_cast<float*>(uboLight_ptr);
+		float innerCutOff{cosf(glm::radians(11.0f))}, outerCutOff{cosf(glm::radians(13.0f))};	// 设置聚光内外切光角余弦值	
+		floatData[0] = innerCutOff;
+		floatData[1] = outerCutOff;
+		float constant{1.0f}, linear{0.2f}, quadratic{0.022f};	// 设置光照衰减函数常数项、一次项、二次项
+		floatData[2] = constant;
+		floatData[3] = linear;
+		floatData[4] = quadratic;
+		glUnmapBuffer(GL_UNIFORM_BUFFER);
+	}
+	glBindBuffer(GL_UNIFORM_BUFFER, 0);
+	
 	while (!glfwWindowShouldClose(window)){
 		processInput(window);
 		
 		// 背景重绘
         glClearColor(0.2f, 0.2f, 0.2f, 0.2f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-        // 光源设置
-		myShader->use();	
+		
+        // 传入光源 vec3 类型参数
+		glBindBuffer(GL_UNIFORM_BUFFER, uboLight);
         glm::vec3 lightColor(1.0f, 1.0f, 1.0f);	    // 设置光源颜色
         glm::vec3 direction =myCamera->m_front;     // 设置光照方向同摄像机所摄方向
         glm::vec3 lightPos = myCamera->m_position;	// 设置光源位置同摄像机位置
-        myShader->setVec3("light.direction", direction);
-        myShader->setVec3("light.position", lightPos);
-        myShader->set1Float("light.innerCutOff", cosf(glm::radians(11.0f)));	// 传入聚光内切光角余弦值
-        myShader->set1Float("light.outerCutOff", cosf(glm::radians(13.0f)));	// 传入聚光外切光角余弦值
-        myShader->setVec3("light.ambient", glm::vec3(0.4f) * lightColor);		// 传入环境光强分量
-        myShader->setVec3("light.diffuse",  glm::vec3(0.5f) * lightColor);  	// 传入漫反射光强分量
-        myShader->setVec3("light.specular", glm::vec3(0.4f) * lightColor);		// 传入镜面反射光强分量
-        float linear{0.2f}, quadratic{0.022f};                           		// 设置光照衰减函数一次项、二次项
-        myShader->set1Float("light.linear", linear);
-        myShader->set1Float("light.quadratic", quadratic);
-        myShader->set1Float("light.constant", 1.0f);
-		
-		glm::vec2 screenSize = glm::vec2(screenWidth, screenHeight);
-		myShader->setVec2("screenSize", screenSize);	// 传入屏幕尺寸
+        glm::vec3 diffuse = glm::vec3(0.5f) * lightColor;	// 设置漫反射光强分量
+        glm::vec3 specular = glm::vec3(0.4f) * lightColor;	// 设置镜面反射光强分量
+        glm::vec3 ambient = glm::vec3(0.4f) * lightColor;	// 设置环境光强分量
+		void* uboLight_ptr = glMapBufferRange(GL_UNIFORM_BUFFER, 0, uboLightSize, GL_MAP_WRITE_BIT);
+		if (uboLight_ptr) {
+			char* bytePtr = static_cast<char*>(uboLight_ptr);
+			// 填充12字节偏移量对齐后再写入
+			memcpy(bytePtr + 							   5 * sizeof(float) + 12, glm::value_ptr(lightPos),  sizeof(glm::vec3));
+			memcpy(bytePtr + 	 (sizeof(glm::vec3) + 4) + 5 * sizeof(float) + 12, glm::value_ptr(direction), sizeof(glm::vec3));
+			memcpy(bytePtr + 2 * (sizeof(glm::vec3) + 4) + 5 * sizeof(float) + 12, glm::value_ptr(diffuse),   sizeof(glm::vec3));
+			memcpy(bytePtr + 3 * (sizeof(glm::vec3) + 4) + 5 * sizeof(float) + 12, glm::value_ptr(specular),  sizeof(glm::vec3));
+			memcpy(bytePtr + 4 * (sizeof(glm::vec3) + 4) + 5 * sizeof(float) + 12, glm::value_ptr(ambient),   sizeof(glm::vec3));
+			glUnmapBuffer(GL_UNIFORM_BUFFER);
+		}
+		glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
+		glm::vec2 screenSize = glm::vec2(screenWidth, screenHeight);
+		myShader1->use();	
+		myShader1->setVec2("screenSize", screenSize);	// 传入屏幕尺寸
+		myShader2->use();	
+		myShader2->setVec2("screenSize", screenSize);
+		normalShader->use();	
+		normalShader->setVec2("screenSize", screenSize);
+		
 		glBindBuffer(GL_UNIFORM_BUFFER, UBO);	// 进入 UBO 状态机
 		// 透视裁剪
         glm::mat4 projection = glm::perspective(glm::radians(myCamera->m_zoom), (float)screenWidth / (float)screenHeight, 0.1f, 100.0f);
@@ -198,16 +239,25 @@ int main() {
 		glBufferSubData(GL_UNIFORM_BUFFER, sizeof(glm::mat4), sizeof(glm::mat4), glm::value_ptr(view));	// UBO后半部分 写入视角矩阵
 		glBindBuffer(GL_UNIFORM_BUFFER, 0);		// 退出 UBO 状态机
 		// 位移缩放
+		myShader1->use();	
         glm::mat4 model = glm::mat4(1.0f);
         model = glm::translate(model, glm::vec3(0.0f, 0.0f, 0.0f));
-        myShader->setMat4("model", model);
+        myShader1->setMat4("model", model);
+		myShader2->use();	
+        myShader2->setMat4("model", model);
+		normalShader->use();	
+        normalShader->setMat4("model", model);
 		
 		// 绘制物体
+		myShader1->use();	// 绘制顶点
 		glBindVertexArray(VAO);
         glDrawElements(GL_POINTS, 6, GL_UNSIGNED_INT, 0);
 		glBindVertexArray(vao2);
+		myShader2->use();	// 绘制面
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-
+		normalShader->use();	// 绘制可视法线
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+		
 		glfwSwapBuffers(window);
         glfwPollEvents();
 	}
@@ -217,7 +267,9 @@ int main() {
     glDeleteBuffers(1, &EBO);
     glDeleteBuffers(1, &VBO);
     glDeleteBuffers(1, &vbo2);
-	myShader.reset();
+	myShader1.reset();
+	myShader2.reset();
+	normalShader.reset();
     glfwTerminate();
 	myCamera.reset();
 }

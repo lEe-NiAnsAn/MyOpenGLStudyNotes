@@ -14,7 +14,7 @@ class Shader {
 public:
 	unsigned int ID;
 
-	Shader(const char* vertexPath, const char* fragmentPath);
+	Shader(const char* vertexPath, const char* fragmentPath, const char* geometryPath = NULL);
 	void use();
 
 	// uniform 工具函数

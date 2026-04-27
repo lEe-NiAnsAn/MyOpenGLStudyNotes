@@ -25,8 +25,7 @@ out VS_OUT {	// 块名：不同着色器中须保持一致
 } vs_out;	// 实例名：不同着色器中可自行定义
 
 void main() {
-	gl_Position = projection * view * model * vec4(aPos, 1.0);
-	gl_PointSize = clamp(gl_Position.z, 10.0, 100.0);	// 图形顶点随视角距离变远而变大突出，在片段着色器中默认方形扩大，需在主函数中开启相应选项
+	gl_Position = projection * view * model * vec4(aPos, 1.0);	// 裁剪空间坐标
 	vs_out.Color.r = clamp(aColor.r * (gl_VertexID + 1), 0.0, 1.0);	
 	vs_out.Color.g = clamp(aColor.g * (gl_VertexID + 1), 0.0, 1.0);
 	vs_out.Color.b = clamp(aColor.b * (gl_VertexID + 1), 0.0, 1.0);	// 使用顶点着色器输出变量（当前绘制的顶点索引）修改传入片段着色器的颜色，实现越后绘制的顶点越

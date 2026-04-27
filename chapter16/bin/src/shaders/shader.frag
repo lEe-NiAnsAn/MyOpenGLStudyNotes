@@ -1,17 +1,17 @@
 #version 330 core
 
-struct Light {
+layout(std140) uniform Light {	// 使用 UBO 进行传入以便在多个着色器程序中共享
+    float innerCutOff;	// 聚光切内光角余弦值
+    float outerCutOff;	// 聚光切外光角余弦值
+    float constant;		// 光照衰减公式常数项
+    float linear;		// 光照衰减公式一次项
+    float quadratic;	// 光照衰减公式二次项
     vec3 position;		// 光源位置
-	vec3 direction;		// 光照方向
-	float innerCutOff;	// 聚光切内光角余弦值
-	float outerCutOff;	// 聚光切外光角余弦值
+    vec3 direction;		// 光照方向
     vec3 diffuse;		// 对漫反射光的分量（漫反射光的强度）
     vec3 specular;		// 对镜面反射光的分量（镜面反射光的强度）
     vec3 ambient;		// 对环境光的分量（环境光的强度）
-	float constant;		// 光照衰减公式常数项
-    float linear;		// 光照衰减公式一次项
-    float quadratic;	// 光照衰减公式二次项
-};
+} light;
 
 // 使用接口块接受着色器数据
 in VS_OUT {
@@ -20,7 +20,6 @@ in VS_OUT {
 	vec3 Normal;
 } fs_in;
 
-uniform Light light;
 uniform vec2 screenSize;
 
 out vec4 FragColor;
