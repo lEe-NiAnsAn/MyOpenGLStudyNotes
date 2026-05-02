@@ -14,17 +14,18 @@ layout (std140) uniform InstanceOffsets {
 } Offsets;
 
 out VS_OUT {
-	vec3 FragPos;
+	vec3 FragPos;	// 世界空间坐标
 	vec3 Color;
 	vec3 Normal;
 } vs_out;
 
 void main() {
 	vec3 offset = Offsets.offsets[gl_InstanceID];
-	gl_Position = projection * view * model * vec4(aPos + offset, 1.0);
+	vec4 worldPos = model* vec4(aPos + offset, 1.0);	// 世界空间坐标
+	gl_Position = projection * view * worldPos;	// 裁剪空间坐标
 	vs_out.Color.r = fract(aColor.r + gl_InstanceID / 12.5);
 	vs_out.Color.g = fract(aColor.g + gl_InstanceID / 22.5);
 	vs_out.Color.b = fract(aColor.b + gl_InstanceID / 5.5);		// 多种颜色
-	vs_out.FragPos = vec3(model * vec4(aPos + offset, 1.0));
+	vs_out.FragPos = worldPos.xyz;
 	vs_out.Normal = aNormal;
 }

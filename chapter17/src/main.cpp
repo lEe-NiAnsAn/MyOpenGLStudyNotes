@@ -23,7 +23,7 @@ void switch2Win(GLFWwindow *window);
 
 bool VSync = false;	// 垂直同步状态
 bool isFullscreen = false;	// 是否处于全屏独占模式
-int windowedPosX, windowedPosY, windowedWidth, windowedHeight;	// 保存窗口化模式相关数据
+int windowedPosX, windowedPosY, windowedWidth, windowedHeight;	// 保存处于窗口化模式时相关数据
 
 float delta = 0.0f;     // 帧间时差
 float lastFrame = 0.0f; // 末帧时间
@@ -79,51 +79,125 @@ int main() {
 	   -0.5f,  0.5f, 0.0f,
 	   -0.5f, -0.5f, 0.0f
 	};
+	auto size_vertPos = sizeof(vertPos);
     float vertCol[] = {	// 颜色
 		0.99f, 0.55f, 0.23f, 
 		0.99f, 0.55f, 0.23f, 
 		0.99f, 0.55f, 0.23f, 
 		0.99f, 0.55f, 0.23f
 	};
+	auto size_vertCol = sizeof(vertCol);
     float vertNor[] = {	// 法线
 		0.0f, 0.0f, 1.0f,
 		0.0f, 0.0f, 1.0f,
 		0.0f, 0.0f, 1.0f,
 		0.0f, 0.0f, 1.0f
 	};
+	auto size_vertNor = sizeof(vertNor);
     unsigned int indices[] = {
-        0, 1, 2, 
+		0, 1, 2, 
         2, 3, 0
     };    
-	// 生成配置 VAO、EBO、VBO
+	auto size_indices = sizeof(indices);
+
+	// 设置 shader2 实例变换矩阵，实现在一个体积环中随机分布
+	unsigned int amount = 100000;	// 实例数量十万（使用顶点属性可大幅减轻性能负担）
+	glm::mat4 *modelMatrices;	// 变换矩阵数组指针
+	modelMatrices = new glm::mat4[amount];	// 堆上创建便于释放内存
+	srand(glfwGetTime()); // 传入时间以初始化随机种子    
+	float radius = 7.0f;	// 体积环半径
+	float offset = 0.3f;	// 浮动参数
+	float scale = 0.002f;	// 缩放参数
+	glm::vec3 centerPos = glm::vec3(0.0f, 0.0f, 3.25f);	// 环心坐标
+	for(unsigned int i = 0; i < amount; i++) {	// 迭代生成变换矩阵
+		glm::mat4 model = glm::mat4(1.0f);
+		// 位移：以XoY平面单位圆为基础，环径大小浮动 offset ，厚度浮动 0.4*offset
+		float angle = (float)i / (float)amount * 360.0f;	// 均分角
+		float displacement = (rand() % (int)(2 * offset * 100)) / 100.0f - offset;	// 生成x分量的随机浮动量
+		float x = sin(angle) * radius + displacement + centerPos.x;	// 设置移动矩阵的x轴分量
+		displacement = (rand() % (int)(2 * offset * 100)) / 100.0f - offset;	// 生成y分量的随机浮动量
+		float y = cos(angle) * radius + displacement + centerPos.y;	// 设置移动矩阵的y轴分量
+		displacement = (rand() % (int)(2 * offset * 100)) / 100.0f - offset;	// 生成z分量的随机浮动量(小于x轴与z轴，实现扁平环)
+		float z = displacement * 0.4f + centerPos.z;	// 设置移动矩阵的z轴分量
+		model = glm::translate(model, glm::vec3(x, y, z));
+		// 缩放
+		float scale = (rand() % 2) / 1000.0f + 0.015;	// 生成 (0.002, 0.0035) 区间内的缩放参数
+		model = glm::scale(model, glm::vec3(scale));
+		// 旋转
+		float rotAngle = (rand() % 360);	// 随机旋转某个整数角度
+		model = glm::rotate(model, rotAngle, glm::vec3(0.0f, 0.0f, 1.0f));	// 旋转轴为z轴
+
+		modelMatrices[i] = model;
+	}  
+	glm::vec3 *offsets = new glm::vec3[amount];
+	float scale2 = sqrtf(scale);	// 对面积缩放参数开平方得到长度缩放参数
+	for(unsigned int i = 0; i < amount; i++) {	// 交替设置偏移量
+		if (i % 2 == 0) {
+			offsets[i] = glm::vec3(0.0f, 0.0f, 3.0f / scale2);	// 偏移中心同变换矩阵属性，且需考虑缩放大小
+		}
+		else {
+			offsets[i] = glm::vec3(0.0f, 0.0f, -3.0f / scale2);
+		}
+	}
+	
+	// 生成 VAO、EBO、VBO
 	unsigned int VAO, EBO, VBO;
     glGenVertexArrays(1, &VAO);   
     glGenBuffers(1, &EBO);
     glGenBuffers(1, &VBO);
 
+	// 绑定 VAO、设置写入 VBO 与 EBO
 	glBindVertexArray(VAO);
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertPos) + sizeof(vertCol) + sizeof(vertNor), NULL, GL_STATIC_DRAW);	// 申请预留缓冲空间
+    glBufferData(GL_ARRAY_BUFFER, size_vertPos + size_vertCol + size_vertNor, NULL, GL_STATIC_DRAW);
+	glBufferSubData(GL_ARRAY_BUFFER, 0, size_vertPos, vertPos);	
+	glBufferSubData(GL_ARRAY_BUFFER, size_vertPos, size_vertCol, vertCol);
+	glBufferSubData(GL_ARRAY_BUFFER, size_vertPos + size_vertCol, size_vertNor, vertNor);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, size_indices, indices, GL_STATIC_DRAW);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	
-	glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertPos), vertPos);	
-	glBufferSubData(GL_ARRAY_BUFFER, sizeof(vertPos), sizeof(vertCol), vertCol);
-	glBufferSubData(GL_ARRAY_BUFFER, sizeof(vertPos) + sizeof(vertCol), sizeof(vertNor), vertNor);
- 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
-	
+	// 设置 shader2 中实例偏移量数组属性
+	unsigned int instanceVBO;
+	glGenBuffers(1, &instanceVBO);
+	glBindBuffer(GL_ARRAY_BUFFER, instanceVBO);
+	auto size_instance = amount * sizeof(glm::vec3);
+	glBufferData(GL_ARRAY_BUFFER, size_instance, offsets, GL_STATIC_DRAW);
+	glEnableVertexAttribArray(3);	// 传入数组属性至 3 号点位（shader1 中不存在）
+	glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (void*)0);
+	glVertexAttribDivisor(3, 1);	// 显式说明该属性为实例化数组，控制更新数据的时机为渲染一个新实例时（第二个参数为属性除数，默认为0，表示每帧更新）
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	// 设置 shader2 中实例变换矩阵数组属性
+	unsigned int modelVBO;
+	glGenBuffers(1, &modelVBO);
+	glBindBuffer(GL_ARRAY_BUFFER, modelVBO);
+	auto size_model = amount * sizeof(glm::mat4);
+	glBufferData(GL_ARRAY_BUFFER, size_model, modelMatrices, GL_STATIC_DRAW);
+	for (unsigned int i = 0; i < 4; i++) {	// 传递顶点属性的大小不可超过 vec4，需要拆分传递
+		glEnableVertexAttribArray(4 + i);	// 使用4个连续顶点属性号
+		glVertexAttribPointer(4 + i, 4, GL_FLOAT, GL_FALSE, sizeof(glm::mat4), (void*)(i * sizeof(glm::vec4)));	
+		glVertexAttribDivisor(4 + i, 1);
+	}
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+	// 设置传入 VBO 数据数组属性
+	glBindBuffer(GL_ARRAY_BUFFER, VBO);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (void*)(0));
     glEnableVertexAttribArray(0);	// 位置
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, (void*)(sizeof(vertPos)));
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, (void*)(size_vertPos));
     glEnableVertexAttribArray(1);	// 颜色
-    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 0, (void*)(sizeof(vertPos) + sizeof(vertCol)));
+    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 0, (void*)(size_vertPos + size_vertCol));
     glEnableVertexAttribArray(2);	// 法线向量
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
 	
-	auto myShader = std::make_unique<Shader>("src/shaders/shader.vert", "src/shaders/shader.frag");
+	auto myShader1 = std::make_unique<Shader>("src/shaders/shader1.vert", "src/shaders/shader.frag");
+	auto myShader2 = std::make_unique<Shader>("src/shaders/shader2.vert", "src/shaders/shader.frag");
 	// 设置相应绑定点
-	unsigned int matrices_index = glGetUniformBlockIndex(myShader->ID, "Matrices");
-	glUniformBlockBinding(myShader->ID, matrices_index, 0);
+	unsigned int matrices_index1 = glGetUniformBlockIndex(myShader1->ID, "Matrices");
+	glUniformBlockBinding(myShader1->ID, matrices_index1, 0);
+	unsigned int matrices_index2 = glGetUniformBlockIndex(myShader2->ID, "Matrices");
+	glUniformBlockBinding(myShader2->ID, matrices_index2, 0);
 	// 设置 uniform 数据缓冲对象
 	unsigned int UBO;
 	glGenBuffers(1, &UBO);
@@ -134,8 +208,10 @@ int main() {
 	glBindBuffer(GL_UNIFORM_BUFFER, 0);
 	
 	// 设置光源
-	unsigned int lights_index = glGetUniformBlockIndex(myShader->ID, "Light");
-	glUniformBlockBinding(myShader->ID, lights_index, 1);
+	unsigned int lights_index1 = glGetUniformBlockIndex(myShader1->ID, "Light");
+	glUniformBlockBinding(myShader1->ID, lights_index1, 1);
+	unsigned int lights_index2 = glGetUniformBlockIndex(myShader2->ID, "Light");
+	glUniformBlockBinding(myShader2->ID, lights_index2, 1);
 	unsigned int uboLight;
 	glGenBuffers(1, &uboLight);
 	glBindBuffer(GL_UNIFORM_BUFFER, uboLight);
@@ -157,9 +233,9 @@ int main() {
 	}
 	glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
-	// 设置实例坐标偏移量
-	unsigned int offsets_index = glGetUniformBlockIndex(myShader->ID, "InstanceOffsets");
-	glUniformBlockBinding(myShader->ID, offsets_index, 2);
+	// 设置 shader1 中实例坐标偏移量 UBO
+	unsigned int offsets_index = glGetUniformBlockIndex(myShader1->ID, "InstanceOffsets");
+	glUniformBlockBinding(myShader1->ID, offsets_index, 2);
 	unsigned int uboOffsets;
 	glGenBuffers(1, &uboOffsets);
 	glBindBuffer(GL_UNIFORM_BUFFER, uboOffsets);
@@ -188,7 +264,7 @@ int main() {
 		glUnmapBuffer(GL_UNIFORM_BUFFER);
 	}
 	glBindBuffer(GL_UNIFORM_BUFFER, 0);
-	
+
 	while (!glfwWindowShouldClose(window)){
 		processInput(window);
 		
@@ -217,9 +293,12 @@ int main() {
 		}
 		glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
+		// 传入屏幕尺寸
 		glm::vec2 screenSize = glm::vec2(screenWidth, screenHeight);
-		myShader->use();	
-		myShader->setVec2("screenSize", screenSize);
+		myShader1->use();	
+		myShader1->setVec2("screenSize", screenSize);
+		myShader2->use();	
+		myShader2->setVec2("screenSize", screenSize);
 		
 		glBindBuffer(GL_UNIFORM_BUFFER, UBO);	// 进入 UBO 状态机
 		// 透视裁剪
@@ -230,15 +309,27 @@ int main() {
 		glBufferSubData(GL_UNIFORM_BUFFER, sizeof(glm::mat4), sizeof(glm::mat4), glm::value_ptr(view));	// UBO后半部分 写入视角矩阵
 		glBindBuffer(GL_UNIFORM_BUFFER, 0);		// 退出 UBO 状态机
 		// 位移缩放
-		myShader->use();	
         glm::mat4 model = glm::mat4(1.0f);
         model = glm::translate(model, glm::vec3(0.0f, 0.0f, 0.0f));
-        myShader->setMat4("model", model);
+		myShader1->use();	
+        myShader1->setMat4("model", model);
+		// 粒子环随运行时间自转
+		myShader2->use();
+		float time = glfwGetTime();
+		float time_angle = time * glm::radians(5.0f);	// 每秒旋转 3 度
+        glm::mat4 time_model = glm::rotate(glm::mat4(1.0f), time_angle, glm::vec3(0.0f, 0.0f, 1.0f));;
+		myShader2->setMat4("time_model", time_model);
 		
 		// 绘制物体
-		myShader->use();
+		myShader1->use();
 		glBindVertexArray(VAO);
+		glDisableVertexAttribArray(3);	// 禁用3号数组属性防止触发缓冲区读取造成额外性能开销
+		glDisableVertexAttribArray(4);
         glDrawElementsInstanced(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0, 125);	//使用实例化绘制125个正方形
+		myShader2->use();
+		glEnableVertexAttribArray(3);	// 启用3号数组属性以进行实例偏移量属性的传递
+		glEnableVertexAttribArray(4);
+		glDrawElementsInstanced(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0, amount);	// 使用实例偏移量复制粒子绘制双环
 
 		glfwSwapBuffers(window);
         glfwPollEvents();
@@ -247,7 +338,8 @@ int main() {
 	glDeleteVertexArrays(1, &VAO);
     glDeleteBuffers(1, &EBO);
     glDeleteBuffers(1, &VBO);
-	myShader.reset();
+	myShader1.reset();
+	myShader2.reset();
     glfwTerminate();
 	myCamera.reset();
 }
