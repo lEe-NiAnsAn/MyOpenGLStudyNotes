@@ -1,8 +1,9 @@
 #include "camera.h"
 
-// 初始化列表：摄像机所摄方向，摄像机移动速度，鼠标灵敏度，fov值
+// 初始化列表：摄像机所摄方向，摄像机移动速度，鼠标灵敏度，fov值，伽马矫正标志，伽马矫正大小
 Camera::Camera(glm::vec3 position, glm::vec3 up, float yaw, float pitch) 
-: m_front(glm::vec3(0.0f, 0.0f, -1.0f)), m_movementSpeed(SPEED), m_mouseSensitivity(SENSITIVITY), m_zoom(ZOOM) {
+: m_front(glm::vec3(0.0f, 0.0f, -1.0f)), m_movementSpeed(SPEED), m_mouseSensitivity(SENSITIVITY), 
+  m_zoom(ZOOM), m_gammaFlag(false), m_gammaValue(GAMMA), m_gammaRate(GAMMA_RATE) {
     m_position = position;
     m_worldUp = up;
     m_yaw = yaw;
@@ -10,7 +11,8 @@ Camera::Camera(glm::vec3 position, glm::vec3 up, float yaw, float pitch)
     updateCameraVectors();
 }
 Camera::Camera(float posX, float posY, float posZ, float upX, float upY, float upZ, float yaw, float pitch) 
-: m_front(glm::vec3(0.0f, 0.0f, -1.0f)), m_movementSpeed(SPEED), m_mouseSensitivity(SENSITIVITY), m_zoom(ZOOM) {
+: m_front(glm::vec3(0.0f, 0.0f, -1.0f)), m_movementSpeed(SPEED), m_mouseSensitivity(SENSITIVITY), 
+  m_zoom(ZOOM), m_gammaFlag(false), m_gammaValue(GAMMA), m_gammaRate(GAMMA_RATE) {
     m_position = glm::vec3(posX, posY, posZ);
     m_worldUp = glm::vec3(upX, upY, upZ);
     m_yaw = yaw;
@@ -29,7 +31,6 @@ void Camera::ProcessKeyboard(Camera_Movement direction, float deltaTime) {
 	switch(direction) {
 		case Camera_Movement::NOTMOVE: 
 			break;
-		return;
 		case Camera_Movement::FORWARD:
 			{m_position += m_front * velocity;}
 		break;
@@ -99,4 +100,29 @@ void Camera::updateCameraVectors() {
 	// 计算新正x轴与正y轴方向向量
 	m_right = glm::normalize(glm::cross(m_front, m_worldUp));
 	m_up    = glm::normalize(glm::cross(m_right, m_front));
+}
+
+void Camera::ProcessGamma(Camera_Gamma gamma, float deltaTime) {
+	float rate = m_gammaRate * deltaTime;
+	// rate = (int)(rate * 100.0f) / 100.0f;	// 保留小数点后两位 
+	switch(gamma) {
+		case Camera_Gamma::NOTCHANGE: 
+			break;
+		case Camera_Gamma::INCREASE: {
+			m_gammaValue += rate;
+			if (m_gammaValue > 5.0f) {	// 限制除数最大值
+				m_gammaValue = 5.0f;
+			}
+			break;
+		}
+		case Camera_Gamma::DECREASE: {
+			m_gammaValue -= rate;
+			if (m_gammaValue < 0.01f) {	// 防止除数为零
+				m_gammaValue = 0.01f;
+			}
+			break;
+		}
+		default:
+			break;
+	}
 }

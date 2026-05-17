@@ -5,11 +5,13 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
-const float YAW         = -90.0f;   // 默认偏航角
-const float PITCH       =  0.0f;    // 默认俯仰角
-const float SPEED       =  2.0f;    // 默认速度
-const float SENSITIVITY =  0.02f;   // 默认灵敏度
-const float ZOOM        =  45.0f;   // 默认FOV缩放大小
+const float YAW         = -90.0f;	// 默认偏航角
+const float PITCH       =  0.0f; 	// 默认俯仰角
+const float SPEED       =  2.0f; 	// 默认速度
+const float SENSITIVITY =  0.02f;	// 默认灵敏度
+const float ZOOM        =  45.0f;	// 默认FOV缩放大小
+const float GAMMA       =  2.2f; 	// 默认伽马矫正大小
+const float GAMMA_RATE  =  0.5f; 	// 默认伽马值变化速率大小
 
 class Camera {
 public:
@@ -23,7 +25,11 @@ public:
 		NOTMOVE,	// 不移动
 		REZOOM		// 恢复fov
 	};
-	
+	enum Camera_Gamma {
+		NOTCHANGE,	// 不更改
+		INCREASE,	// 增大
+		DECREASE	// 减小
+	};
 
 	glm::vec3 m_position; 			// 摄像机全局坐标
 	glm::vec3 m_front;    			// 摄像机所摄方向（负z轴方向）
@@ -32,9 +38,12 @@ public:
 	glm::vec3 m_worldUp;  			// 全局正y轴方向
     float m_yaw;					// 偏航角
     float m_pitch;  				// 俯仰角
-	float m_zoom;					// FOV缩放大小
+	float m_zoom;					// FOV 缩放大小
     float m_movementSpeed;			// 摄像机移动速度
     float m_mouseSensitivity;		// 鼠标灵敏度
+	bool m_gammaFlag;				// 伽马矫正标志
+	float m_gammaValue;				// 伽马矫正大小
+    float m_gammaRate;				// 伽马值变化速率
 	
 	static bool firstMouse;
 	static bool IsMouseCaptured;	// 是否捕捉鼠标指针
@@ -50,13 +59,16 @@ public:
     glm::mat4 GetViewMatrix();
 
     // 接受摄像机移动方向标志与帧间时差参数实现键盘控制
-    void ProcessKeyboard( Camera_Movement direction, float deltaTime);
+    void ProcessKeyboard(Camera_Movement direction, float deltaTime);
 
 	// 接受鼠标移动的x轴分量、y轴分量与是否限制仰角参数实现鼠标控制
     void ProcessMouseMovement(float cursorX, float cursorY, GLboolean constrainPitch = true);
 	
     // 接受鼠标滚轮水平滚动偏移量与垂直滚动偏移量参数实现FOV控制
     void ProcessMouseScroll(float yoffset);
+
+    // 接受伽马矫正大小变化标志与帧间时差参数实现伽马值控制
+    void ProcessGamma(Camera_Gamma gamma, float deltaTime);
 
 private:
     // 更新摄像机所摄方向向量（负z轴）

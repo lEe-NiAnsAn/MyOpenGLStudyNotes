@@ -20,7 +20,6 @@ in VS_OUT {
 } fs_in;
 
 uniform vec2 screenSize;
-uniform int lightingModel;
 uniform vec3 cameraPos;
 
 out vec4 FragColor;
@@ -38,25 +37,16 @@ void main() {
 	float diff = max(dot(norm, lightDir), 0.0);					// 漫反射系数
 	vec3 diffuse = light.diffuse * diff * fs_in.Color;			// 纹理漫反射光照
 
-	float spec = 0.0f;	// 高光系数
 	vec3 viewDir = normalize(fs_in.FragPos - cameraPos);		// 视线方向
-	if (lightingModel == 0) {	// Phone 
-		vec3 reflectDir = reflect(-lightDir, norm);				// 反射方向
-		spec = pow(max(dot(-viewDir, reflectDir), 0.0), 12.0);
-	}
-	else if (lightingModel == 1) {	// Blinn-Phone
-		vec3 halfwayDir = normalize(lightDir - viewDir);		// 半程向量
-		spec = pow(max(dot(norm, halfwayDir), 0.0), 32.0);		// 高光系数
-	}
+	vec3 halfwayDir = normalize(lightDir - viewDir);			// 半程向量
+	float spec = pow(max(dot(norm, halfwayDir), 0.0), 32.0);	// 高光系数
 	vec3 specular = light.specular * spec * fs_in.Color;		// 纹理镜面反射光照
 
-	if (lightingModel != 1) {	// 当为布林-风氏模型时不采取手电筒模式
-		float theta = dot(-viewDir, normalize(-light.direction));
-		float epsilon = light.innerCutOff - light.outerCutOff;
-		float intensity = clamp((theta - light.outerCutOff) / epsilon, 0.0, 1.0);	// 插值公式计算
-		diffuse  *= intensity;
-		specular  *= intensity;
-	}
+	float theta = dot(lightDir, normalize(-light.direction));
+	float epsilon = light.innerCutOff - light.outerCutOff;
+	float intensity = clamp((theta - light.outerCutOff) / epsilon, 0.0, 1.0);	// 插值公式计算
+	diffuse  *= intensity;
+	specular  *= intensity;
 	
 	float distance = length(light.position - fs_in.FragPos);	// 光源距离
 	float attenuation = 1.0 / (light.constant + light.linear * distance + light.quadratic * (distance * distance));	// 光照衰弱公式

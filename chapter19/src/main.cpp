@@ -22,6 +22,9 @@ void switch2FullWin(GLFWwindow *window);
 void switch2CommonWin(GLFWwindow *window);
 // 按键事件工具函数：切换至无边框模式
 void switch2FramelessWin(GLFWwindow *window);
+// sRGB 色彩空间色值转换为线性色值
+float sRGB2Linear(float u);
+void sRGB2Linear(float* colors, int count);
 
 struct FBO {	// 帧缓冲对象结构体
     unsigned int framebuffer = 0;			// 帧缓冲 ID
@@ -48,8 +51,6 @@ float Camera::m_cursorX = screenWidth / 2.0f;
 float Camera::m_cursorY = screenHeight / 2.0f;	// 鼠标指针位置窗口居中
 bool Camera::firstMouse = true;
 bool Camera::IsMouseCaptured = true;
-int lightingModel = 0;	// 默认光照模型为普通风氏模型（1为布林-风氏模型）
-glm::vec3 lastCameraPos = myCamera->m_position;	// 保存上一帧摄像机位置
 
 int main() {
 	// 初始化 GLFW
@@ -123,6 +124,8 @@ int main() {
 		0.99f, 0.55f, 0.23f
 	};
 	auto size_vertCol = sizeof(vertCol);
+	// 若颜色值由屏幕取色确定，则该颜色值已是在 sRGB 颜色空间进行了伽马矫正的色值，在程序中手动开启伽马矫正时需手动还原该色值至线性值
+	sRGB2Linear(vertCol, size_vertCol / sizeof(vertCol[0]));
     float vertNor[] = {	// 法线
 		0.0f, 0.0f, 1.0f,
 		0.0f, 0.0f, 1.0f,
@@ -204,14 +207,21 @@ int main() {
 
 	setMSAA(multiFBO, intermediateFBO, multiNum);	// 设置帧缓冲
 
+	float last_time = 0.0f, bg_color = 0.0f;
 	while (!glfwWindowShouldClose(window)){
 		processInput(window);
 		glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		
+		float current_time = glfwGetTime();
+		if ((current_time - last_time) > 1.0f) {			// 每隔一秒变化一次背景颜色
+			if (bg_color > 1.0f) bg_color = 0.0f;
+			else bg_color += 0.1f;
+			last_time = current_time;
+		}
 		// 绑定至多重采样帧缓冲对象（或普通帧缓冲）
         glBindFramebuffer(GL_FRAMEBUFFER, multiFBO.framebuffer);
-        glClearColor(0.2f, 0.2f, 0.2f, 1.0f);				// 背景颜色设置
+        glClearColor(bg_color, bg_color, bg_color, 1.0f);	// 背景颜色设置
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);	// 清除颜色及深度缓冲
         glEnable(GL_DEPTH_TEST); 							// 启用深度测试
 		
@@ -220,18 +230,10 @@ int main() {
 		glBindBuffer(GL_UNIFORM_BUFFER, uboLight);
         glm::vec3 lightColor(1.0f, 1.0f, 1.0f);	    		// 设置光源颜色
 		glm::vec3 diffuse = glm::vec3(0.5f) * lightColor;	// 设置漫反射光强分量
-        glm::vec3 specular = glm::vec3(0.3f) * lightColor;	// 设置镜面反射光强分量
-        glm::vec3 ambient = glm::vec3(0.4f) * lightColor;	// 设置环境光强分量
-        glm::vec3 direction =myCamera->m_front;     		// 设置光照方向同摄像机所摄方向
-		glm::vec3 lightPos = glm::vec3(0.0f);
-		if (lightingModel == 0) {
-			lightPos = myCamera->m_position;				// 设置光源位置同摄像机位置移动
-		}
-        else if (lightingModel == 1) {
-			lightPos = lastCameraPos;						// 设置光源位置为切换至布林-风氏模型的前一帧摄像机位置
-			diffuse *= glm::vec3(0.5f);						// 减弱漫反射光强
-			specular *= glm::vec3(1.6f);					// 增强镜面反射光强
-		}
+        glm::vec3 specular = glm::vec3(0.5f) * lightColor;	// 设置镜面反射光强分量
+        glm::vec3 ambient = glm::vec3(0.2f) * lightColor;	// 设置环境光强分量
+        glm::vec3 direction = myCamera->m_front;     		// 设置光照方向同摄像机所摄方向
+		glm::vec3 lightPos = myCamera->m_position;			// 设置光源位置同摄像机位置移动
 		void* uboLight_ptr = glMapBufferRange(GL_UNIFORM_BUFFER, 0, uboLightSize, GL_MAP_WRITE_BIT);
 		if (uboLight_ptr) {
 			char* bytePtr = static_cast<char*>(uboLight_ptr);
@@ -248,8 +250,6 @@ int main() {
 		// 传入屏幕尺寸
 		glm::vec2 screenSize = glm::vec2(screenWidth, screenHeight);
 		myShader->setVec2("screenSize", screenSize);
-		// 传入光照模型类型
-		myShader->set1Int("lightingModel", lightingModel);
 		// 传入摄像机位置
 		myShader ->setVec3("cameraPos", myCamera->m_position);
 		
@@ -284,12 +284,26 @@ int main() {
 		// 绘制离屏渲染内容
 		screenShader->use();
 		screenShader->set1Int("multiNum", multiNum);	// 传入采样数
+		// 伽马值：设备输出亮度等于电压的 Gamma 次幂
+		// （任何设备 Gamma 基本上都不会等于1，等于1是一种理想的线性状态）
+		// （当Gamma = 1 时：若电压和亮度均在0到1的区间，则电压就等于亮度值）
+		// 早年间的 CRT 显示器伽马值大多为2.2，接近人眼识别亮度的特征，但我们不关注“拟真”，只要求亮度值可按照“预期”代码般线性变化；
+		// 现今 Gamma2.2 相当于一个显示器标准，但各个显示器的实际伽马值并非2.2，故需要手动微调矫正。
+		// 由于不同显示屏的对同一个颜色的实际显示各异，与其依赖显示屏的 sRGB 等色彩空间进行伽马值矫正，不如首先还原至线性色值后通过各异地微调伽马值来输出用户满意的颜色输出
+		// 若我们需要对传入的颜色向量做线性乘除运算，则必须先将其转换至线性空间后再传入着色器进行运算，如此方可避免非线性的 sRGB 空间颜色值在叠加线性系数时造成的颜色漂移
+		// 对于传入的纹理图像文件，OpenGL 提供了 GL_SRGB 和 GL_SRGB_ALPHA 两种内部纹理格式，当读取文件时将其设为纹理格式即可实现自动转换至线性值
+		// 方案一：使用片段着色器手动计算矫正（只对输入到着色器中的像素进行矫正，由 GL 所设置的背景颜色值不会矫正）
+		// 方案二：使用OpenGL内建的sRGB帧缓冲，每次绘制时硬件自动处理，把颜色缓冲中（所有像素）的线性颜色转换为 sRGB 空间，只能在最末帧缓冲渲染时调用一次
+		screenShader->set1Bool("gammaFlag", myCamera->m_gammaFlag);	// 传入伽马矫正标志
+		screenShader->set1Float("gammaValue", myCamera->m_gammaValue);	// 传入伽马矫正大小
         glBindVertexArray(quadVAO);
+		// glEnable(GL_FRAMEBUFFER_SRGB);
 		if (multiNum == 0)
 			glBindTexture(GL_TEXTURE_2D, multiFBO.textureColorbuffer);	// 直接使用普通采样帧缓冲
 		else
 			glBindTexture(GL_TEXTURE_2D, intermediateFBO.textureColorbuffer);	// 使用中间帧缓冲
         glDrawArrays(GL_TRIANGLES, 0, 6);
+		// glDisable(GL_FRAMEBUFFER_SRGB);	// 及时关闭
 
 		glfwSwapBuffers(window);
         glfwPollEvents();
@@ -317,7 +331,7 @@ void framebuffer_size_callback(GLFWwindow *window, int width, int height) { // �
     screenHeight = height;
 	// 更新帧缓冲尺寸
 	if (multiNum == 0) {
-		glBindTexture(GL_TEXTURE_2D, multiFBO.textureColorbuffer);
+		glBindTexture(GL_TEXTURE_2D, multiFBO.textureColorbuffer);	
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, screenWidth, screenHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
 		glBindTexture(GL_TEXTURE_2D, 0);
 		glBindRenderbuffer(GL_RENDERBUFFER, multiFBO.rbo);
@@ -352,6 +366,9 @@ void scroll_callback(GLFWwindow* window, double xoffsetIn, double yoffsetIn) {  
 }
 
 void processInput(GLFWwindow *window) { // 传入窗口句柄，实时监测按键事件
+	float currentFrame = glfwGetTime();
+	delta = currentFrame - lastFrame;
+	lastFrame = currentFrame;
 	// 按 ~ 切换鼠标捕获模式
     static bool lastGraveState = false;
     bool currentGraveState = glfwGetKey(window, GLFW_KEY_GRAVE_ACCENT) == GLFW_PRESS;
@@ -410,9 +427,6 @@ void processInput(GLFWwindow *window) { // 传入窗口句柄，实时监测按�
 		lastAltEnterState = currentAltEnterState;
 
 		// 按下 WASD↑↓ 改变摄像机位置
-		float currentFrame = glfwGetTime();
-		delta = currentFrame - lastFrame;
-		lastFrame = currentFrame;
 		Camera::Camera_Movement direction = Camera::Camera_Movement::NOTMOVE;   // 默认不移动
 		if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {     // W 前进
 			direction = Camera::Camera_Movement::FORWARD;
@@ -432,6 +446,7 @@ void processInput(GLFWwindow *window) { // 传入窗口句柄，实时监测按�
 		if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) {  // ↓ 下降
 			direction = Camera::Camera_Movement::DOWN;
 		}
+		myCamera->ProcessKeyboard(direction, delta);
 	
 		// 按 R 恢复 fov
 		static bool lastRState = false;
@@ -441,24 +456,44 @@ void processInput(GLFWwindow *window) { // 传入窗口句柄，实时监测按�
 			std::cout << "The FOV has been reset to default value." << std::endl;
 		}
 		lastRState = currentRState;
-		myCamera->ProcessKeyboard(direction, delta);
 
-		// 按 B 切换光照模型
-		static bool lastBState = false;
-		bool currentBState = glfwGetKey(window, GLFW_KEY_B) == GLFW_PRESS;
-		if (currentBState && !lastBState) {
-			if (lightingModel == 0) {
-				lightingModel = 1;
-				std::cout << "The lighting model has been switched to Blinn-Phong." << std::endl;
+		// 按 G 切换伽马矫正开启状态
+		static bool lastGState = false;
+		bool currentGState = glfwGetKey(window, GLFW_KEY_G) == GLFW_PRESS;
+		if (currentGState && !lastGState) {
+			if (!myCamera->m_gammaFlag) {
+				myCamera->m_gammaFlag = true;
+				std::cout << "The Gamma Correction has been enabled." << std::endl;
 			}
 			else {
-				lightingModel = 0;
-				std::cout << "The lighting model has been switched to Phong." << std::endl;
+				myCamera->m_gammaFlag = false;
+				std::cout << "The Gamma Correction has been disabled." << std::endl;
 			}
-			lastCameraPos = myCamera->m_position;
+			myCamera->m_gammaValue = 2.2f;	// 伽马值重置
 		}
-		lastBState = currentBState;
-
+		lastGState = currentGState;
+		
+		// 按下 ←→ 改变伽马矫正大小
+		if (myCamera->m_gammaFlag) {
+			static auto lastLEFTState{GLFW_RELEASE}, lastRIGHTState{GLFW_RELEASE};
+			auto currentLEFTState = glfwGetKey(window, GLFW_KEY_LEFT);	
+			auto currentRIGHTState = glfwGetKey(window, GLFW_KEY_RIGHT);	
+			Camera::Camera_Gamma gamma = Camera::Camera_Gamma::NOTCHANGE;   // 默认不更改
+			if (currentLEFTState == GLFW_PRESS) {    // ← 减小
+				gamma = Camera::Camera_Gamma::DECREASE;
+			}
+			if (currentRIGHTState == GLFW_PRESS) {  // → 增大
+				gamma = Camera::Camera_Gamma::INCREASE;
+			}
+			if ((lastLEFTState == GLFW_PRESS && currentLEFTState == GLFW_RELEASE) || 
+				(lastRIGHTState == GLFW_PRESS && currentRIGHTState == GLFW_RELEASE)) {	// 松开按键显示当前伽马值
+				std::cout << "The Gamma Value is " << myCamera->m_gammaValue << " right now." << std::endl;
+			}
+			lastLEFTState = currentLEFTState;
+			lastRIGHTState = currentRIGHTState; 
+			myCamera->ProcessGamma(gamma, delta);
+		}
+	
 		// 按 X 循环更改多重采样数
 		static bool lastXState = false;
 		bool currentXState = glfwGetKey(window, GLFW_KEY_X) == GLFW_PRESS;
@@ -636,4 +671,18 @@ void cleanupFBO(FBO& fbo) {
     fbo.rbo = 0;
 	fbo.textureColorbuffer = 0;
 	fbo.framebuffer = 0;
+}
+
+float sRGB2Linear(float u) {	// sRGB 色彩标准 IEC 61966-2-1 为非线性编码伽马，其优化了暗部编码，不可简单使用2.2次幂进行还原
+    if (u <= 0.04045f) {
+        return u / 12.92f;
+    } 
+	else {
+        return powf((u + 0.055f) / 1.055f, 2.4f);
+    }
+}
+void sRGB2Linear(float* colors, int count) {
+    for (int i = 0; i < count; i++) {
+        colors[i] = sRGB2Linear(colors[i]);	// 遍历数组进行转换
+    }
 }
